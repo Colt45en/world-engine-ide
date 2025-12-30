@@ -1,0 +1,29 @@
+{
+  "name": "offline-job-runner",
+  "version": "1.0.0",
+  "description": "An offline-safe scheduled job runner that stores jobs locally, runs on a schedule, queues failures, retries later, saves results, and exports JSON.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "node-cron": "^3.0.0",
+    "fs-extra": "^10.0.0"
+  },
+  "devDependencies": {
+    "jest": "^27.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/offline-job-runner.git"
+  },
+  "keywords": [
+    "job",
+    "scheduler",
+    "offline",
+    "runner"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

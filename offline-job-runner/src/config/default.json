@@ -1,0 +1,19 @@
+{
+  "jobRunner": {
+    "schedule": "*/5 * * * *",
+    "maxRetries": 3,
+    "retryDelay": 1000,
+    "storage": {
+      "type": "json",
+      "path": "./data/jobs.json"
+    },
+    "exporter": {
+      "type": "json",
+      "outputPath": "./data/results.json"
+    },
+    "logging": {
+      "level": "info",
+      "logFile": "./logs/jobRunner.log"
+    }
+  }
+}
