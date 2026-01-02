@@ -200,44 +200,35 @@ export function languageDomTreeToPseudoHtmlLines(tree, opts = {}) {
   function walk(node, indent, path = '') {
     if (node.type === 'dir') {
       const isCollapsed = collapsed.has(path);
-      
-      // Count and possibly skip this line for virtual scrolling
-      if (lineCount < startLine) {
-        lineCount++;
-        if (!isCollapsed) {
-          for (const child of node.children || []) {
-            const childPath = path ? `${path}/${child.name}` : child.name;
-            walk(child, indent + 2, childPath);
-          }
-          lineCount++; // Count closing tag
-        }
-        return;
+
+      // Count and possibly skip opening tag
+      if (lineCount >= startLine && lines.length < maxLines) {
+        const attrs = isCollapsed ? ' collapsed="true"' : '';
+        lines.push(`${getIndent(indent)}<dir name="${node.name}"${attrs}>`);
       }
+      lineCount++;
 
-      if (lines.length >= maxLines) return;
-
-      const marker = isCollapsed ? 'collapsed="true"' : '';
-      lines.push(`${getIndent(indent)}<dir name="${node.name}" ${marker}>`);
-
+      // Process children if not collapsed
       if (!isCollapsed) {
         for (const child of node.children || []) {
           const childPath = path ? `${path}/${child.name}` : child.name;
           walk(child, indent + 2, childPath);
         }
-        lines.push(`${getIndent(indent)}</dir>`);
+
+        // Count and possibly render closing tag
+        if (lineCount >= startLine && lines.length < maxLines) {
+          lines.push(`${getIndent(indent)}</dir>`);
+        }
+        lineCount++;
       }
       return;
     }
 
     // File node
-    if (lineCount < startLine) {
-      lineCount++;
-      return;
+    if (lineCount >= startLine && lines.length < maxLines) {
+      lines.push(`${getIndent(indent)}<file name="${node.name}" lang="${node.lang || 'unknown'}" />`);
     }
-
-    if (lines.length >= maxLines) return;
-
-    lines.push(`${getIndent(indent)}<file name="${node.name}" lang="${node.lang || 'unknown'}" />`);
+    lineCount++;
   }
 
   walk(tree, 0);
