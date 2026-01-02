@@ -1,0 +1,1901 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WoW-Lite 3D Prototype</title>
+  <!-- Updated to a valid semantic version (0.160.0) which supports CapsuleGeometry -->
+
+  <style>
+    :root {
+      --bg-dark: #0a0a0f;
+      --bg-panel: rgba(20, 20, 30, 0.95);
+      --accent-gold: #ffd700;
+      --accent-blue: #4a9eff;
+      --accent-purple: #a335ee;
+      --text-primary: #f0e6d2;
+      --text-secondary: #a89968;
+      --border-gold: #c9aa71;
+      --health-red: #ff3333;
+      --mana-blue: #4a9eff;
+      --energy-yellow: #ffd700;
+      --xp-purple: #a335ee;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    html,
+    body {
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background: #000;
+      color: var(--text-primary);
+    }
+
+    /* Main Game Container */
+    #game-container {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Action Bar */
+    #action-bar {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      left: auto;
+      bottom: auto;
+      transform: none;
+      display: flex;
+      gap: 8px;
+      z-index: 130;
+    }
+
+    .action-slot {
+      width: 38px;
+      height: 38px;
+      background: var(--bg-panel);
+      border: 2px solid var(--border-gold);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.15rem;
+      cursor: pointer;
+      transition: all 0.1s;
+      position: relative;
+      backdrop-filter: blur(4px);
+    }
+
+    .action-slot:active {
+      transform: scale(0.95);
+      border-color: white;
+    }
+
+    .action-slot:hover {
+      border-color: var(--accent-gold);
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+    }
+
+    .action-slot .keybind {
+      display: none;
+      position: absolute;
+      top: 2px;
+      right: 4px;
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      font-weight: bold;
+    }
+
+    .action-slot .cooldown-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      border-radius: 6px;
+      height: 0%;
+      bottom: 0;
+      transition: height 0.1s linear;
+    }
+
+    /* 3D Canvas Container */
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      background: #1a1a1a;
+      overflow: hidden;
+      cursor: crosshair;
+    }
+
+    /* Character HUD - Top Left */
+    #character-hud {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      width: 280px;
+      background: var(--bg-panel);
+      border: 2px solid var(--border-gold);
+      border-radius: 12px;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .hud-top-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 5px;
+    }
+
+    .character-portrait {
+      width: 50px;
+      height: 50px;
+      background: linear-gradient(135deg, #4a9eff 0%, #2a5298 100%);
+      border: 2px solid var(--accent-gold);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+    }
+
+    .character-info {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .character-name {
+      font-weight: bold;
+      color: var(--accent-gold);
+    }
+
+    .character-level {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    /* Resource Bars */
+    .resource-bar {
+      width: 100%;
+      margin-top: 2px;
+    }
+
+    .bar-container {
+      height: 16px;
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bar-text {
+      position: absolute;
+      width: 100%;
+      text-align: center;
+      font-size: 0.7rem;
+      line-height: 16px;
+      text-shadow: 1px 1px 2px black;
+      z-index: 2;
+    }
+
+    .bar-fill {
+      height: 100%;
+      transition: width 0.2s ease;
+    }
+
+    .health-bar {
+      background: linear-gradient(90deg, #990000 0%, #ff3333 100%);
+    }
+
+    .mana-bar {
+      background: linear-gradient(90deg, #003399 0%, #4a9eff 100%);
+    }
+
+    /* Target Frame */
+    #target-frame {
+      position: absolute;
+      top: 20px;
+      left: 320px;
+      /* Next to player frame */
+      width: 250px;
+      background: var(--bg-panel);
+      border: 2px solid var(--border-gold);
+      border-radius: 12px;
+      padding: 12px;
+      display: none;
+      /* Hidden by default */
+    }
+
+    #target-frame.active {
+      display: block;
+      animation: popIn 0.2s ease;
+    }
+
+    @keyframes popIn {
+      from {
+        transform: scale(0.9);
+        opacity: 0;
+      }
+
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    /* Mini Map - Top Right */
+    #minimap {
+      position: absolute;
+      top: 70px;
+      right: 20px;
+      width: 180px;
+      height: 180px;
+      background: radial-gradient(circle at 50% 50%, rgba(74, 158, 255, 0.12), rgba(0, 0, 0, 0.92) 70%);
+      border: 2px solid var(--accent-blue);
+      border-radius: 50%;
+      overflow: hidden;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.55);
+    }
+
+    .minimap-content {
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at 50% 50%, rgba(74, 158, 255, 0.08), rgba(0, 0, 0, 0.92) 72%);
+      position: relative;
+    }
+
+    /* Sonar rings */
+    .minimap-content::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        repeating-radial-gradient(circle at 50% 50%,
+          rgba(74, 158, 255, 0.0) 0px,
+          rgba(74, 158, 255, 0.0) 16px,
+          rgba(74, 158, 255, 0.14) 17px,
+          rgba(74, 158, 255, 0.0) 18px);
+      opacity: 0.85;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Sonar sweep */
+    .minimap-content::after {
+      content: '';
+      position: absolute;
+      inset: -20%;
+      background:
+        conic-gradient(from 0deg,
+          rgba(74, 158, 255, 0.00),
+          rgba(74, 158, 255, 0.00) 300deg,
+          rgba(74, 158, 255, 0.25) 330deg,
+          rgba(74, 158, 255, 0.00) 360deg);
+      animation: sonarSweep 2.25s linear infinite;
+      opacity: 0.9;
+      pointer-events: none;
+      mix-blend-mode: screen;
+      z-index: 1;
+    }
+
+    @keyframes sonarSweep {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .minimap-player {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-bottom: 12px solid var(--accent-gold);
+      transform: translate(-50%, -50%);
+      z-index: 2;
+    }
+
+    .minimap-enemy {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      background: #ff3333;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 10px rgba(255, 51, 51, 0.65);
+      z-index: 2;
+    }
+
+    /* Chat Box */
+    #chat-box {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      width: 350px;
+      height: 200px;
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      pointer-events: all;
+    }
+
+    #chat-box:hover {
+      background: rgba(0, 0, 0, 0.6);
+    }
+
+    .chat-messages {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+      font-size: 0.9rem;
+      text-shadow: 1px 1px 1px black;
+    }
+
+    .chat-messages::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    .chat-messages::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 2px;
+    }
+
+    .chat-msg {
+      margin-bottom: 4px;
+    }
+
+    .msg-system {
+      color: #ffff00;
+    }
+
+    .msg-loot {
+      color: #a335ee;
+    }
+
+    .msg-combat {
+      color: #ff3333;
+    }
+
+    .chat-input-row {
+      padding: 5px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .chat-input {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: white;
+      outline: none;
+      font-family: inherit;
+    }
+
+    /* Casting Bar */
+    #casting-bar {
+      position: absolute;
+      bottom: 180px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 300px;
+      display: none;
+    }
+
+    #casting-bar.active {
+      display: block;
+    }
+
+    .cast-name {
+      text-align: center;
+      font-size: 0.9rem;
+      margin-bottom: 2px;
+      text-shadow: 1px 1px 2px black;
+      font-weight: bold;
+    }
+
+    .cast-container {
+      height: 20px;
+      border: 2px solid var(--border-gold);
+      background: rgba(0, 0, 0, 0.8);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .cast-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #ffd700, #ffaa00);
+      box-shadow: 0 0 10px #ffd700;
+    }
+
+    /* Floating Combat Text */
+    .floating-text {
+      position: absolute;
+      color: #ff3333;
+      font-weight: bold;
+      font-size: 1.5rem;
+      pointer-events: none;
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+      animation: floatUp 1s forwards ease-out;
+    }
+
+    @keyframes floatUp {
+      0% {
+        transform: translateY(0) scale(0.5);
+        opacity: 1;
+      }
+
+      50% {
+        transform: translateY(-30px) scale(1.2);
+        opacity: 1;
+      }
+
+      100% {
+        transform: translateY(-60px) scale(1);
+        opacity: 0;
+      }
+    }
+
+    /* Loading Screen */
+    #loading-screen {
+      position: fixed;
+      inset: 0;
+      background: #050505;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.5s;
+    }
+
+    .loading-logo {
+      font-size: 4rem;
+      font-weight: bold;
+      color: var(--accent-gold);
+      text-shadow: 0 0 20px var(--accent-gold);
+      margin-bottom: 20px;
+    }
+
+    .loading-bar {
+      width: 300px;
+      height: 10px;
+      background: #333;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .loading-progress {
+      width: 0%;
+      height: 100%;
+      background: var(--accent-blue);
+      transition: width 0.2s;
+    }
+
+    /* Quest Tracker */
+    #quest-tracker {
+      position: absolute;
+      top: 250px;
+      right: 20px;
+      width: 250px;
+      color: white;
+      text-shadow: 1px 1px 2px black;
+    }
+
+    .quest-header {
+      color: var(--accent-gold);
+      font-weight: bold;
+      margin-bottom: 5px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .quest-obj {
+      font-size: 0.9rem;
+      margin-bottom: 2px;
+    }
+
+    .quest-done {
+      color: #888;
+      text-decoration: line-through;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Loading Screen -->
+  <div id="loading-screen">
+    <div class="loading-logo">WARCRAFT LITE</div>
+    <div class="loading-bar">
+      <div class="loading-progress" id="loading-progress"></div>
+    </div>
+    <div style="margin-top: 10px; color: #666;">Generating World...</div>
+  </div>
+
+  <div id="game-container">
+    <!-- 3D Scene Host -->
+    <div id="canvas-container"></div>
+
+    <!-- Character HUD -->
+    <div id="character-hud">
+      <div class="hud-top-row">
+        <div class="character-portrait">🧙‍♂️</div>
+        <div class="character-info">
+          <div class="character-name">Player</div>
+          <div class="character-level">Level 60 Mage</div>
+        </div>
+      </div>
+      <div class="resource-bar">
+        <div class="bar-container">
+          <div class="bar-fill health-bar" id="player-hp-bar" style="width: 100%"></div>
+          <div class="bar-text" id="player-hp-text">100 / 100</div>
+        </div>
+      </div>
+      <div class="resource-bar">
+        <div class="bar-container">
+          <div class="bar-fill mana-bar" id="player-mana-bar" style="width: 100%"></div>
+          <div class="bar-text" id="player-mana-text">100 / 100</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Target Frame -->
+    <div id="target-frame">
+      <div class="hud-top-row">
+        <div class="character-portrait" style="background: linear-gradient(135deg, #990000 0%, #550000 100%);">☠️</div>
+        <div class="character-info">
+          <div class="character-name" id="target-name">Target</div>
+          <div class="character-level" id="target-level">Level 5 Boar</div>
+        </div>
+      </div>
+      <div class="resource-bar">
+        <div class="bar-container">
+          <div class="bar-fill health-bar" id="target-hp-bar" style="width: 100%"></div>
+          <div class="bar-text" id="target-hp-text">100%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Minimap -->
+    <div id="minimap">
+      <div class="minimap-content" id="minimap-content">
+        <div class="minimap-player" id="minimap-arrow"></div>
+        <!-- Enemies added via JS -->
+      </div>
+    </div>
+
+    <!-- Quest Tracker -->
+    <div id="quest-tracker">
+      <div class="quest-header">Quests</div>
+      <div class="quest-obj" id="quest-1">- Kill Red Cubes: <span id="quest-count">0</span>/5</div>
+      <div class="quest-obj">- Explore the Green Plains</div>
+    </div>
+
+    <!-- Action Bar -->
+    <div id="action-bar">
+      <button type="button" class="action-slot" onclick="castSpell(1)" title="Fireball">
+        <span class="keybind">1</span>🔥
+        <div class="cooldown-overlay" id="cd-1"></div>
+      </button>
+      <button type="button" class="action-slot" onclick="castSpell(2)" title="Frostbolt">
+        <span class="keybind">2</span>❄️
+        <div class="cooldown-overlay" id="cd-2"></div>
+      </button>
+      <button type="button" class="action-slot" onclick="castSpell(3)" title="Arcane Blast">
+        <span class="keybind">3</span>✨
+        <div class="cooldown-overlay" id="cd-3"></div>
+      </button>
+      <button type="button" class="action-slot" onclick="castSpell(4)" title="Heal">
+        <span class="keybind">4</span>💚
+        <div class="cooldown-overlay" id="cd-4"></div>
+      </button>
+      <button type="button" class="action-slot" onclick="castSpell(5)" title="Blink">
+        <span class="keybind">5</span>💨
+        <div class="cooldown-overlay" id="cd-5"></div>
+      </button>
+    </div>
+
+    <!-- Casting Bar -->
+    <div id="casting-bar">
+      <div class="cast-name" id="cast-name">Fireball</div>
+      <div class="cast-container">
+        <div class="cast-fill" id="cast-fill"></div>
+      </div>
+    </div>
+
+    <!-- Chat -->
+    <div id="chat-box">
+      <div class="chat-messages" id="chat-msgs">
+        <div class="chat-msg msg-system">System: Welcome to WoW-Lite 3D.</div>
+        <div class="chat-msg msg-system">Tip: Right-click & drag to rotate camera. WASD to move.</div>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" class="chat-input" placeholder="Say something..." onkeypress="handleChat(event, this)">
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Logic -->
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.159.0/build/three.module.js';
+    // Expose THREE to legacy code and other scripts if needed
+    globalThis.THREE = THREE;
+
+    function safeStr(v) {
+      return typeof v === 'string' ? v : null;
+    }
+
+    function toFinite(v) {
+      return typeof v === 'number' && Number.isFinite(v) ? v : null;
+    }
+
+    // Ensure Three.js is loaded
+    globalThis.addEventListener('load', () => {
+      if (globalThis.THREE === undefined) {
+        document.getElementById('loading-screen').innerHTML = "<div style='color:red; text-align:center; margin-top:100px;'>Error: Failed to load Three.js.<br>Please check your internet connection.</div>";
+        return;
+      }
+
+      // --- Game State & Constants ---
+      const gameState = {
+        player: {
+          hp: 100, maxHp: 100,
+          mana: 100, maxMana: 100,
+          target: null,
+          isCasting: false,
+          killCount: 0
+        },
+        spells: {
+          1: { name: 'Fireball', time: 1500, cost: 10, damage: 20, color: 0xff4400, cd: 0 },
+          2: { name: 'Frostbolt', time: 1200, cost: 8, damage: 15, color: 0x0088ff, cd: 0 },
+          3: { name: 'Arcane Blast', time: 0, cost: 25, damage: 30, color: 0xff00ff, cd: 3000 }, // Instant
+          4: { name: 'Heal', time: 2000, cost: 15, damage: -30, color: 0x00ff00, cd: 0 },
+          5: { name: 'Blink', time: 0, cost: 20, damage: 0, color: 0x00ffff, cd: 10000 }
+        },
+        enemies: []
+      };
+
+      // --- Three.js Setup ---
+      const container = document.getElementById('canvas-container');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x87CEEB); // Sky blue
+      scene.fog = new THREE.Fog(0x87CEEB, 20, 100);
+
+      const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.shadowMap.enabled = true;
+      container.appendChild(renderer.domElement);
+
+      // --- Lighting ---
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(50, 100, 50);
+      dirLight.castShadow = true;
+      dirLight.shadow.camera.left = -100; // Increased shadow area
+      dirLight.shadow.camera.right = 100;
+      dirLight.shadow.camera.top = 100;
+      dirLight.shadow.camera.bottom = -100;
+      dirLight.shadow.mapSize.width = 2048; // Better shadow quality
+      dirLight.shadow.mapSize.height = 2048;
+      scene.add(dirLight);
+
+      // --- World Generation ---
+
+      // Helper: Terrain Height Calculation
+      // Centralized logic for Hills + Lake so all objects can use it
+      const lakeCenterX = 50;
+      const lakeCenterY = 50; // In world Z
+      const lakeRadius = 30;
+
+      function getTerrainHeight(x, z) {
+        // 1. Base Mountain/Hill Noise
+        let y = Math.sin(x * 0.05) * 2 + Math.cos(z * 0.05) * 2;
+        y += Math.sin(x * 0.1 + z * 0.2) * 1; // Detail noise
+
+        // 2. Lake Depression
+        const dist = Math.hypot(x - lakeCenterX, z - lakeCenterY);
+        if (dist < lakeRadius) {
+          // Smooth falloff for lake bed
+          y -= Math.cos((dist / lakeRadius) * Math.PI / 2) * 8;
+        }
+
+        return y;
+      }
+
+      function createGrassTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+
+        // Base grassy color
+        ctx.fillStyle = '#2a6b2a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Add subtle noise / blades
+        for (let i = 0; i < 4000; i++) {
+          const x = Math.random() * canvas.width;
+          const y = Math.random() * canvas.height;
+          const g = 120 + Math.floor(Math.random() * 80);
+          ctx.fillStyle = `rgba(0,${g},0,${0.04 + Math.random() * 0.06})`;
+          ctx.fillRect(x, y, 1, 1);
+        }
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(10, 10);
+        return tex;
+      }
+
+      // Ground with Displacement
+      const groundGeo = new THREE.PlaneGeometry(200, 200, 100, 100);
+
+      // Terrain Generation Logic (Hills + Lake)
+      const posAttr = groundGeo.attributes.position;
+
+      for (let i = 0; i < posAttr.count; i++) {
+        const x = posAttr.getX(i);
+        // Note: We use 'posAttr.getY(i)' as the Z input for our height function because
+        // we are about to rotate this plane flat.
+        const h = getTerrainHeight(x, posAttr.getY(i));
+
+        posAttr.setZ(i, h); // Set local Z (which becomes local 'height' before rotation, wait...)
+        // Standard Plane Z is 0. Displacement usually moves Z.
+        // When we rotate X -90, Z becomes Y (Up). So calculating height and setting Z is correct.
+      }
+      groundGeo.computeVertexNormals();
+
+      const groundMat = new THREE.MeshStandardMaterial({
+        map: createGrassTexture(),
+        roughness: 0.9,
+        flatShading: false
+      });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      // Water Plane (Lake)
+      const waterGeo = new THREE.CircleGeometry(lakeRadius - 2, 32);
+      const waterMat = new THREE.MeshStandardMaterial({
+        color: 0x0077be,
+        transparent: true,
+        opacity: 0.7,
+        roughness: 0.1,
+        metalness: 0.5
+      });
+      const water = new THREE.Mesh(waterGeo, waterMat);
+      // Position water at (LakeCenter, Height, LakeCenterZ)
+      water.rotation.x = -Math.PI / 2;
+      water.position.set(lakeCenterX, -2.5, lakeCenterY);
+      scene.add(water);
+
+      // Trees (Tripled Trunk Size)
+      const treeGeo = new THREE.ConeGeometry(5, 12, 8); // Scaled up foliage
+      const treeMat = new THREE.MeshStandardMaterial({ color: 0x0d380d });
+
+      // Tripled Trunk: Radius 0.5 -> 1.5, Height 2 -> 6
+      const trunkGeo = new THREE.CylinderGeometry(1.5, 1.5, 6, 8);
+      const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3d2817 });
+
+      for (let i = 0; i < 40; i++) {
+        // Random position
+        let tx = (Math.random() - 0.5) * 180;
+        let tz = (Math.random() - 0.5) * 180;
+
+        // Check Lake Collision
+        const distToLake = Math.hypot(tx - lakeCenterX, tz - lakeCenterY);
+        if (distToLake < lakeRadius + 2) continue; // Don't spawn in water
+
+        // Check Spawn collision
+        if (Math.abs(tx) < 10 && Math.abs(tz) < 10) continue;
+
+        // Get Height at position for Clamping
+        let groundHeight = getTerrainHeight(tx, tz);
+
+        const treeGroup = new THREE.Group();
+
+        const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+        trunk.position.y = 3; // Half height (6/2)
+        trunk.castShadow = true;
+
+        const top = new THREE.Mesh(treeGeo, treeMat);
+        top.position.y = 9; // Trunk height (6) + half cone height (6)? or just sit on top
+        top.castShadow = true;
+
+        treeGroup.add(top);
+        treeGroup.add(trunk);
+
+        treeGroup.position.set(tx, groundHeight, tz);
+        scene.add(treeGroup);
+      }
+
+      // --- Player Setup ---
+      const playerGroup = new THREE.Group();
+      // Updated to use CapsuleGeometry (Requires Three.js r137+)
+      // Radius: 0.5, Length (cylinder part): 1.0 -> Total Height = 2.0
+      const playerGeo = new THREE.CapsuleGeometry(0.5, 1, 4, 16);
+      const playerMat = new THREE.MeshStandardMaterial({ color: 0x0000ff }); // Blue Mage
+      const playerMesh = new THREE.Mesh(playerGeo, playerMat);
+      playerMesh.position.y = 1; // Offset so bottom is at 0 local
+      playerMesh.castShadow = true;
+      playerGroup.add(playerMesh);
+      scene.add(playerGroup);
+
+      // Physics State for Player
+      playerGroup.userData = {
+        velocity: new THREE.Vector3(),
+        isJumping: false,
+        onGround: false
+      };
+
+      // Spawn on terrain so the capsule doesn't start below the displaced mesh.
+      {
+        const sx = 0;
+        const sz = 0;
+        playerGroup.position.set(sx, getTerrainHeight(sx, sz), sz);
+      }
+
+      // Add a small "face" to see direction
+      const noseGeo = new THREE.BoxGeometry(0.2, 0.2, 0.5);
+      const noseMat = new THREE.MeshStandardMaterial({ color: 0xffccaa });
+      const nose = new THREE.Mesh(noseGeo, noseMat);
+      nose.position.set(0, 1.5, 0.3); // Front of face
+      playerGroup.add(nose);
+
+      // --- Enemy Setup ---
+      function spawnEnemy(x, z, name) {
+        const geo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+        const mat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+        const enemy = new THREE.Mesh(geo, mat);
+
+        // Clamp enemy to ground
+        const groundH = getTerrainHeight(x, z);
+        enemy.position.set(x, groundH + 0.75, z); // +0.75 is half height
+
+        enemy.castShadow = true;
+        enemy.userData = {
+          type: 'enemy',
+          hp: 100,
+          maxHp: 100,
+          name: name || 'Red Cube',
+          id: Math.random()
+        };
+        scene.add(enemy);
+        gameState.enemies.push(enemy);
+
+        // Add minimap dot
+        const miniDot = document.createElement('div');
+        miniDot.className = 'minimap-enemy';
+        miniDot.id = `mini-${enemy.userData.id}`;
+        document.getElementById('minimap-content').appendChild(miniDot);
+      }
+
+      // Spawn some enemies
+      for (let i = 0; i < 10; i++) {
+        let ex = (Math.random() - 0.5) * 100;
+        let ez = (Math.random() - 0.5) * 100;
+
+        // Ensure enemies don't spawn deep in the lake
+        if (getTerrainHeight(ex, ez) < -2) {
+          ex += 50; // Simple displacement
+        }
+
+        spawnEnemy(ex, ez, 'Angry Cube ' + (i + 1));
+      }
+
+      // --- Controls ---
+      const keys = { w: false, a: false, s: false, d: false, Space: false };
+      const mouse = { x: 0, y: 0, down: false, button: -1 };
+
+      // Camera Params
+      let cameraAngle = 0; // Horizontal angle (radians)
+      let cameraPitch = 0.5; // Vertical angle
+      let cameraDist = 10;
+
+      const rotateSpeed = 0.005;
+
+      // Event Listeners
+      globalThis.addEventListener('keydown', e => {
+        const k = e.key === ' ' ? 'Space' : e.key.toLowerCase();
+        if (k === 'Space' || keys.hasOwnProperty(k)) {
+          keys[k] = true;
+          if (k === 'Space' && !playerGroup.userData.isJumping) {
+            playerGroup.userData.velocity.y = JUMP_SPEED; // Jump strength (per-second)
+            playerGroup.userData.isJumping = true;
+            playerGroup.userData.onGround = false;
+          }
+        }
+        if (['1', '2', '3', '4', '5'].includes(e.key)) castSpell(Number.parseInt(e.key));
+      });
+
+      globalThis.addEventListener('keyup', e => {
+        const k = e.key === ' ' ? 'Space' : e.key.toLowerCase();
+        if (k === 'Space' || keys.hasOwnProperty(k)) {
+          keys[k] = false;
+        }
+      });
+
+      container.addEventListener('mousedown', e => {
+        mouse.down = true;
+        mouse.button = e.button;
+        if (e.button === 0) trySelectTarget(e); // Left click select
+      });
+
+      globalThis.addEventListener('mouseup', () => { mouse.down = false; });
+
+      globalThis.addEventListener('mousemove', e => {
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+        if (mouse.down && mouse.button === 2) { // Right click drag: Rotate Player & Camera
+          cameraAngle -= e.movementX * rotateSpeed;
+          cameraPitch -= e.movementY * rotateSpeed;
+          cameraPitch = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, cameraPitch));
+
+          // Rotate player mesh to match camera angle
+          playerGroup.rotation.y = cameraAngle;
+        }
+      });
+
+      container.addEventListener('contextmenu', e => e.preventDefault()); // Prevent menu
+
+      container.addEventListener('wheel', e => {
+        cameraDist += e.deltaY * 0.01;
+        cameraDist = Math.max(2, Math.min(20, cameraDist));
+      });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Removed old jump() function, logic is now in update loop
+
+      // --- Raycasting (Target Selection) ---
+      const raycaster = new THREE.Raycaster();
+
+      function trySelectTarget(e) {
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(scene.children);
+
+        let clickedEnemy = null;
+        for (let hit of intersects) {
+          if (hit.object.userData && hit.object.userData.type === 'enemy') {
+            clickedEnemy = hit.object;
+            break;
+          }
+        }
+
+        if (clickedEnemy) {
+          setTarget(clickedEnemy);
+        }
+      }
+
+      function setTarget(enemyMesh) {
+        gameState.player.target = enemyMesh;
+        updateTargetFrame();
+
+        // Add selection ring (visual)
+        scene.children.forEach(c => { if (c.name === 'selectRing') scene.remove(c); });
+        const ringGeo = new THREE.RingGeometry(1.5, 1.7, 32);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0xffd700, side: THREE.DoubleSide });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.name = 'selectRing';
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.y = 0.1;
+        enemyMesh.add(ring);
+      }
+
+      function updateTargetFrame() {
+        const frame = document.getElementById('target-frame');
+        const target = gameState.player.target;
+
+        if (!target || target.userData.hp <= 0) {
+          frame.classList.remove('active');
+          if (target && target.userData.hp <= 0) {
+            target.remove(target.getObjectByName('selectRing')); // Remove ring from dead
+            gameState.player.target = null;
+          }
+          return;
+        }
+
+        frame.classList.add('active');
+        document.getElementById('target-name').innerText = target.userData.name;
+        const hpPct = (target.userData.hp / target.userData.maxHp) * 100;
+        document.getElementById('target-hp-bar').style.width = hpPct + '%';
+        document.getElementById('target-hp-text').innerText = Math.floor(target.userData.hp) + ' / ' + target.userData.maxHp;
+      }
+
+      // --- Combat System ---
+      globalThis.castSpell = function (slot) {
+        const spell = gameState.spells[slot];
+        if (!spell) return;
+        if (gameState.player.isCasting) {
+          addChatMessage("System", "Already casting!", "msg-system");
+          return;
+        }
+        if (gameState.player.mana < spell.cost) {
+          addChatMessage("System", "Not enough mana!", "msg-system");
+          return;
+        }
+
+        // Start Cooldown visual
+        const cdEl = document.getElementById(`cd-${slot}`);
+        if (cdEl.style.height !== '' && cdEl.style.height !== '0%') return; // On CD
+
+        // Start Cast
+        if (spell.time > 0) {
+          startCastBar(spell, () => finalizeSpell(spell, slot));
+        } else {
+          finalizeSpell(spell, slot); // Instant
+        }
+
+        // Visual CD
+        if (spell.cd > 0) {
+          cdEl.style.height = '100%';
+          cdEl.style.transition = `height ${spell.cd}ms linear`;
+          setTimeout(() => cdEl.style.height = '0%', 10);
+        }
+      }
+
+      function startCastBar(spell, callback) {
+        gameState.player.isCasting = true;
+        const bar = document.getElementById('casting-bar');
+        const fill = document.getElementById('cast-fill');
+        const name = document.getElementById('cast-name');
+
+        bar.classList.add('active');
+        name.innerText = spell.name;
+        fill.style.width = '0%';
+        fill.style.transition = 'none'; // Reset
+
+        setTimeout(() => {
+          fill.style.transition = `width ${spell.time}ms linear`;
+          fill.style.width = '100%';
+        }, 10);
+
+        setTimeout(() => {
+          bar.classList.remove('active');
+          gameState.player.isCasting = false;
+          callback();
+        }, spell.time);
+      }
+
+      function finalizeSpell(spell, slot) {
+        // Mana Cost
+        gameState.player.mana -= spell.cost;
+        updatePlayerFrame();
+
+        // Logic
+        if (spell.name === 'Blink') {
+          // Teleport forward
+          const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), playerGroup.rotation.y);
+          const dest = playerGroup.position.clone().add(forward.multiplyScalar(10));
+
+          // Clamp destination height
+          dest.y = getTerrainHeight(dest.x, dest.z);
+          playerGroup.position.copy(dest);
+
+          createParticles(playerGroup.position, 0x00ffff, 20);
+          return;
+        }
+
+        if (spell.name === 'Heal') {
+          gameState.player.hp = Math.min(gameState.player.maxHp, gameState.player.hp + 30);
+          updatePlayerFrame();
+          createParticles(playerGroup.position, 0x00ff00, 30);
+          createFloatingText(playerGroup.position, "+30", "green");
+          return;
+        }
+
+        // Offensive Spells
+        const target = gameState.player.target;
+        if (target) {
+          // Create Projectile
+          shootProjectile(playerGroup.position, target.position, spell.color, () => {
+            // On Hit
+            const dmg = spell.damage + Math.floor(Math.random() * 5);
+            target.userData.hp -= dmg;
+            createFloatingText(target.position, dmg, "yellow");
+            createParticles(target.position, spell.color, 15);
+            updateTargetFrame();
+
+            if (target.userData.hp <= 0) {
+              target.rotation.x = Math.PI / 2; // fall over
+              target.position.y = getTerrainHeight(target.position.x, target.position.z) + 0.5;
+              addChatMessage("Combat", `You killed ${target.userData.name}!`, "msg-loot");
+              gameState.player.killCount++;
+              document.getElementById('quest-count').innerText = gameState.player.killCount;
+              if (gameState.player.killCount === 5) {
+                document.getElementById('quest-1').classList.add('quest-done');
+                addChatMessage("System", "Quest Complete: Kill Red Cubes!", "msg-system");
+              }
+
+              // Respawn logic
+              setTimeout(() => {
+                target.userData.hp = target.userData.maxHp;
+                target.rotation.x = 0;
+                const tx = (Math.random() - 0.5) * 100;
+                const tz = (Math.random() - 0.5) * 100;
+                const th = getTerrainHeight(tx, tz);
+                target.position.set(tx, th + 0.75, tz);
+              }, 5000);
+            }
+          });
+        } else {
+          addChatMessage("System", "No target selected.", "msg-system");
+        }
+      }
+
+      function createParticles(pos, color, count) {
+        const geom = new THREE.BufferGeometry();
+        const positions = [];
+        const velocities = [];
+
+        for (let i = 0; i < count; i++) {
+          positions.push(pos.x, pos.y + 1, pos.z);
+          velocities.push(
+            (Math.random() - 0.5) * 0.5,
+            (Math.random() - 0.5) * 0.5 + 0.5, // Upward bias
+            (Math.random() - 0.5) * 0.5
+          );
+        }
+
+        geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        const mat = new THREE.PointsMaterial({ color: color, size: 0.5, transparent: true });
+        const points = new THREE.Points(geom, mat);
+        scene.add(points);
+
+        // Animate once
+        let frame = 0;
+        const anim = setInterval(() => {
+          const posAttr = points.geometry.attributes.position;
+          for (let i = 0; i < count; i++) {
+            posAttr.array[i * 3] += velocities[i * 3];
+            posAttr.array[i * 3 + 1] += velocities[i * 3 + 1];
+            posAttr.array[i * 3 + 2] += velocities[i * 3 + 2];
+          }
+          posAttr.needsUpdate = true;
+          points.material.opacity -= 0.05;
+          frame++;
+          if (frame > 20) {
+            clearInterval(anim);
+            scene.remove(points);
+          }
+        }, 50);
+      }
+
+      function shootProjectile(start, end, color, onHit) {
+        const geo = new THREE.SphereGeometry(0.3);
+        const mat = new THREE.MeshBasicMaterial({ color: color });
+        const proj = new THREE.Mesh(geo, mat);
+        proj.position.copy(start);
+        proj.position.y += 1; // Chest height
+        scene.add(proj);
+
+        const startVec = proj.position.clone();
+        const endVec = end.clone().add(new THREE.Vector3(0, 0.75, 0)); // Target center
+        let t = 0;
+
+        const anim = setInterval(() => {
+          t += 0.1;
+          proj.position.lerpVectors(startVec, endVec, t);
+          if (t >= 1) {
+            clearInterval(anim);
+            scene.remove(proj);
+            onHit();
+          }
+        }, 16);
+      }
+
+      function createFloatingText(pos, text, color) {
+        const div = document.createElement('div');
+        div.className = 'floating-text';
+        div.innerText = text;
+        div.style.color = color;
+        document.body.appendChild(div);
+
+        // Project 3D pos to 2D screen
+        const vec = pos.clone();
+        vec.y += 2;
+        vec.project(camera);
+        const x = (vec.x * .5 + .5) * window.innerWidth;
+        const y = (-(vec.y * .5) + .5) * window.innerHeight;
+
+        div.style.left = x + 'px';
+        div.style.top = y + 'px';
+
+        setTimeout(() => div.remove(), 1000);
+      }
+
+      function addChatMessage(sender, text, type) {
+        const box = document.getElementById('chat-msgs');
+        const div = document.createElement('div');
+        div.className = `chat-msg ${type}`;
+        div.innerHTML = `<b>[${sender}]:</b> ${text}`;
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+      }
+
+      globalThis.handleChat = function (e, input) {
+        if (e.key === 'Enter') {
+          addChatMessage("Me", input.value, "");
+          input.value = "";
+        }
+      }
+
+      function updatePlayerFrame() {
+        const p = gameState.player;
+        document.getElementById('player-hp-bar').style.width = (p.hp / p.maxHp * 100) + '%';
+        document.getElementById('player-hp-text').innerText = `${Math.floor(p.hp)} / ${p.maxHp}`;
+        document.getElementById('player-mana-bar').style.width = (p.mana / p.maxMana * 100) + '%';
+        document.getElementById('player-mana-text').innerText = `${Math.floor(p.mana)} / ${p.maxMana}`;
+      }
+
+      // --- Physics (fixed timestep) ---
+      const FIXED_DT = 1 / 60; // seconds
+      const MAX_STEPS = 5; // avoid spiral of death
+
+      // Game-tuned constants (units per second)
+      let MOVE_SPEED = 6; // units / sec (tweakable)
+      let GRAVITY = -20; // units / sec^2 (game-tuned gravity)
+      let JUMP_SPEED = 8; // initial jump velocity (units / sec)
+      let MANA_REGEN_RATE = 3; // units per second (approx previous 0.05 * 60)
+
+      // Target values for smooth application (avoid physics jitter)
+      let MOVE_SPEED_TARGET = MOVE_SPEED;
+      let GRAVITY_TARGET = GRAVITY;
+      let JUMP_SPEED_TARGET = JUMP_SPEED;
+      let MANA_REGEN_RATE_TARGET = MANA_REGEN_RATE;
+
+      function clamp(n, min, max) {
+        if (typeof n !== 'number' || Number.isNaN(n)) return min;
+        return Math.max(min, Math.min(max, n));
+      }
+
+      // postMessage transport (host <-> iframe)
+      const transport = {
+        schemaVersion: 1,
+        tunerVersion: '1.0.0',
+        hostOrigin: null,
+        hostInstanceId: null,
+        lastRevisionApplied: 0,
+        seenMessageIds: new Set()
+      };
+
+      try {
+        transport.hostOrigin = document.referrer ? new URL(document.referrer).origin : null;
+      } catch {
+        transport.hostOrigin = null;
+      }
+
+      const telemetry = {
+        enabled: true,
+        hz: 20,
+        lastFramePerfMs: 0,
+        lastSentPerfMs: 0,
+        stableStats: null
+      };
+
+      const warnOnceKeys = new Set();
+
+      function warnOnce(key, error) {
+        if (warnOnceKeys.has(key)) return;
+        warnOnceKeys.add(key);
+        console.warn(key, error);
+      }
+
+      function postToHost(obj) {
+        if (!globalThis.parent || globalThis.parent === globalThis) return;
+        try {
+          const targetOrigin = transport.hostOrigin || '*';
+          globalThis.parent.postMessage(obj, targetOrigin);
+        } catch (e) {
+          warnOnce('postMessage failed', e);
+        }
+      }
+
+      function sendReady() {
+        postToHost({
+          type: 'WOW_LITE/READY',
+          schemaVersion: transport.schemaVersion,
+          hostInstanceId: transport.hostInstanceId,
+          tunerVersion: transport.tunerVersion,
+          supportedParams: ['moveSpeed', 'gravity', 'jumpSpeed', 'manaRegen'],
+          supportedTelemetryFields: ['fps', 'dtMs', 'frameTimeMs', 'appliedParams', 'lastRevisionApplied', 'position'],
+          ranges: {
+            moveSpeed: { min: 1, max: 12 },
+            gravity: { min: -40, max: -5 },
+            jumpSpeed: { min: 2, max: 16 },
+            manaRegen: { min: 0, max: 10 }
+          },
+          rateLimits: {
+            maxSendHz: 30
+          },
+          now: Date.now()
+        });
+      }
+
+      function buildTelemetrySample(nowPerfMs, prevPerfMs) {
+        const dtMs = prevPerfMs ? Math.max(0, nowPerfMs - prevPerfMs) : 0;
+        const fps = dtMs > 0 ? 1000 / dtMs : 0;
+
+        const out = {
+          fps,
+          dtMs,
+          frameTimeMs: dtMs,
+          lastRevisionApplied: transport.lastRevisionApplied,
+          appliedParams: buildCurrentParams()
+        };
+
+        if (playerGroup && playerGroup.position) {
+          out.position = {
+            x: playerGroup.position.x,
+            y: playerGroup.position.y,
+            z: playerGroup.position.z
+          };
+        }
+
+        return out;
+      }
+
+      function maybeSendTelemetry(nowPerfMs) {
+        if (!telemetry.enabled) return;
+        if (!transport.hostInstanceId) return;
+
+        const hz = typeof telemetry.hz === 'number' ? telemetry.hz : 20;
+        const intervalMs = 1000 / Math.max(1, Math.min(60, hz));
+        if (telemetry.lastSentPerfMs && nowPerfMs - telemetry.lastSentPerfMs < intervalMs) return;
+        telemetry.lastSentPerfMs = nowPerfMs;
+
+        postToHost({
+          type: 'WOW_LITE/TELEMETRY',
+          schemaVersion: transport.schemaVersion,
+          hostInstanceId: transport.hostInstanceId,
+          now: Date.now(),
+          data: buildTelemetrySample(nowPerfMs, telemetry.lastFramePerfMs)
+        });
+      }
+
+      function buildCurrentParams() {
+        return {
+          moveSpeed: MOVE_SPEED_TARGET,
+          gravity: GRAVITY_TARGET,
+          jumpSpeed: JUMP_SPEED_TARGET,
+          manaRegen: MANA_REGEN_RATE_TARGET
+        };
+      }
+
+      // Heartbeat: lets the host detect silent stalls
+      setInterval(() => {
+        postToHost({
+          type: 'WOW_LITE/STATUS',
+          schemaVersion: transport.schemaVersion,
+          hostInstanceId: transport.hostInstanceId,
+          lastRevisionApplied: transport.lastRevisionApplied,
+          currentParams: buildCurrentParams(),
+          now: Date.now()
+        });
+      }, 2000);
+
+      function applyNumberParam(params, key, min, max, assignTarget) {
+        if (!params || typeof params !== 'object') return undefined;
+        const value = params[key];
+        if (typeof value !== 'number') return undefined;
+        const clamped = clamp(value, min, max);
+        assignTarget(clamped);
+        return clamped;
+      }
+
+      function applyParams(params) {
+        const applied = {};
+
+        const moveSpeed = applyNumberParam(params, 'moveSpeed', 1, 12, (v) => { MOVE_SPEED_TARGET = v; });
+        if (moveSpeed !== undefined) applied.moveSpeed = moveSpeed;
+
+        const gravity = applyNumberParam(params, 'gravity', -40, -5, (v) => { GRAVITY_TARGET = v; });
+        if (gravity !== undefined) applied.gravity = gravity;
+
+        const jumpSpeed = applyNumberParam(params, 'jumpSpeed', 2, 16, (v) => { JUMP_SPEED_TARGET = v; });
+        if (jumpSpeed !== undefined) applied.jumpSpeed = jumpSpeed;
+
+        const manaRegen = applyNumberParam(params, 'manaRegen', 0, 10, (v) => { MANA_REGEN_RATE_TARGET = v; });
+        if (manaRegen !== undefined) applied.manaRegen = manaRegen;
+
+        return applied;
+      }
+
+      function isTrustedHostEvent(event) {
+        if (event.source !== globalThis.parent) return false;
+        if (transport.hostOrigin) return event.origin === transport.hostOrigin;
+        return event.origin === globalThis.location.origin;
+      }
+
+      function handleConfigMessage(msg) {
+        if (typeof msg.hostInstanceId === 'string') {
+          transport.hostInstanceId = msg.hostInstanceId;
+        }
+
+        if (typeof msg.telemetryEnabled === 'boolean') telemetry.enabled = msg.telemetryEnabled;
+        if (typeof msg.telemetryHz === 'number') telemetry.hz = clamp(msg.telemetryHz, 1, 60);
+        sendReady();
+      }
+
+      function handleDebugSetMessage(msg) {
+        if (transport.hostInstanceId && msg.hostInstanceId && msg.hostInstanceId !== transport.hostInstanceId) return;
+        if (typeof msg.telemetryEnabled === 'boolean') telemetry.enabled = msg.telemetryEnabled;
+        if (typeof msg.telemetryHz === 'number') telemetry.hz = clamp(msg.telemetryHz, 1, 60);
+      }
+
+      function handleStableStatsMessage(msg) {
+        if (transport.hostInstanceId && msg.hostInstanceId && msg.hostInstanceId !== transport.hostInstanceId) return;
+        if (!msg.data || typeof msg.data !== 'object') return;
+        telemetry.stableStats = msg.data;
+      }
+
+      function rejectTunerSet(msg, reason) {
+        postToHost({
+          type: 'WOW_LITE/REJECTED',
+          schemaVersion: transport.schemaVersion,
+          hostInstanceId: transport.hostInstanceId,
+          messageId: msg.messageId || null,
+          revision: msg.revision || 0,
+          reason
+        });
+      }
+
+      function handleTunerSetMessage(msg) {
+        if (msg.schemaVersion !== transport.schemaVersion) {
+          rejectTunerSet(msg, 'Schema version mismatch');
+          return;
+        }
+
+        if (transport.hostInstanceId && msg.hostInstanceId && msg.hostInstanceId !== transport.hostInstanceId) {
+          // Cross-talk guard: ignore messages from other host instances
+          return;
+        }
+
+        const messageId = typeof msg.messageId === 'string' ? msg.messageId : '';
+        const revision = typeof msg.revision === 'number' ? msg.revision : 0;
+
+        if (messageId && transport.seenMessageIds.has(messageId)) {
+          // Idempotent duplicate: ignore. (APPLIED is emitted only once per revision.)
+          return;
+        }
+
+        if (revision <= transport.lastRevisionApplied) {
+          // Out of order or stale: report current truth so host can reconcile.
+          postToHost({
+            type: 'WOW_LITE/REJECTED',
+            schemaVersion: transport.schemaVersion,
+            hostInstanceId: transport.hostInstanceId,
+            messageId: msg.messageId || null,
+            revision,
+            reason: 'Stale revision',
+            lastRevisionApplied: transport.lastRevisionApplied,
+            currentParams: buildCurrentParams()
+          });
+          return;
+        }
+
+        transport.lastRevisionApplied = revision;
+        if (messageId) transport.seenMessageIds.add(messageId);
+
+        const appliedParams = applyParams(msg.params);
+        postToHost({ type: 'WOW_LITE/APPLIED', schemaVersion: transport.schemaVersion, hostInstanceId: transport.hostInstanceId, revision, appliedParams, appliedAtMs: Date.now() });
+      }
+
+      function handleAssetTextureSetMessage(msg) {
+        if (msg.schemaVersion !== transport.schemaVersion) return;
+        if (transport.hostInstanceId && msg.hostInstanceId && msg.hostInstanceId !== transport.hostInstanceId) return;
+
+        const name = safeStr(msg.name) || '(unnamed)';
+        const dataUrl = safeStr(msg.dataUrl);
+        if (!dataUrl) {
+          postToHost({
+            type: 'WOW_LITE/ASSET_TEXTURE_REJECTED',
+            schemaVersion: transport.schemaVersion,
+            hostInstanceId: transport.hostInstanceId,
+            name,
+            reason: 'Missing dataUrl'
+          });
+          return;
+        }
+
+        try {
+          const loader = new THREE.TextureLoader();
+          loader.load(
+            dataUrl,
+            (tex) => {
+              tex.wrapS = THREE.RepeatWrapping;
+              tex.wrapT = THREE.RepeatWrapping;
+              tex.repeat.set(10, 10);
+              groundMat.map = tex;
+              groundMat.needsUpdate = true;
+              postToHost({ type: 'WOW_LITE/ASSET_TEXTURE_APPLIED', schemaVersion: transport.schemaVersion, hostInstanceId: transport.hostInstanceId, name, appliedAtMs: Date.now() });
+            },
+            undefined,
+            () => {
+              postToHost({
+                type: 'WOW_LITE/ASSET_TEXTURE_REJECTED',
+                schemaVersion: transport.schemaVersion,
+                hostInstanceId: transport.hostInstanceId,
+                name,
+                reason: 'Failed to load texture'
+              });
+            }
+          );
+        } catch (e) {
+          warnOnce('ASSET_TEXTURE_SET exception', e);
+          postToHost({
+            type: 'WOW_LITE/ASSET_TEXTURE_REJECTED',
+            schemaVersion: transport.schemaVersion,
+            hostInstanceId: transport.hostInstanceId,
+            name,
+            reason: 'Exception while applying texture'
+          });
+        }
+      }
+
+      // Listen for messages from host
+      globalThis.addEventListener('message', (event) => {
+        if (!isTrustedHostEvent(event)) return;
+
+        const msg = event.data;
+        if (!msg || typeof msg !== 'object' || typeof msg.type !== 'string') return;
+
+        if (msg.type === 'WOW_LITE/CONFIG') return void handleConfigMessage(msg);
+        if (msg.type === 'WOW_LITE/DEBUG_SET') return void handleDebugSetMessage(msg);
+        if (msg.type === 'WOW_LITE/STABLE_STATS') return void handleStableStatsMessage(msg);
+        if (msg.type === 'WOW_LITE/TUNER_SET') return void handleTunerSetMessage(msg);
+        if (msg.type === 'WOW_LITE/ASSET_TEXTURE_SET') return void handleAssetTextureSetMessage(msg);
+
+        // Minimal editor bridge: host-driven placement into the live world.
+        if (msg.type === 'WOW_LITE/EDITOR_PLACE_REQUEST') return void handleEditorPlaceRequest(msg);
+      });
+
+      // --- Editor: place objects from host overlay ---
+      const editor = {
+        instances: new Map(),
+      };
+
+      function raycastToGround(screen) {
+        if (!screen || typeof screen !== 'object') return null;
+        const x = toFinite(screen.x);
+        const y = toFinite(screen.y);
+        const w = toFinite(screen.w);
+        const h = toFinite(screen.h);
+        if (x == null || y == null || w == null || h == null) return null;
+        if (w <= 1 || h <= 1) return null;
+
+        const ndc = new THREE.Vector2((x / w) * 2 - 1, -(y / h) * 2 + 1);
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(ndc, camera);
+        const hits = raycaster.intersectObject(ground, false);
+        if (!hits || hits.length === 0) return null;
+        return hits[0].point.clone();
+      }
+
+      function makeCrateMesh() {
+        const geo = new THREE.BoxGeometry(1, 1, 1);
+        const mat = new THREE.MeshStandardMaterial({ color: 0x66ffff, wireframe: true });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.castShadow = true;
+        return mesh;
+      }
+
+      function handleEditorPlaceRequest(msg) {
+        if (msg.schemaVersion !== transport.schemaVersion) return;
+        if (transport.hostInstanceId && msg.hostInstanceId && msg.hostInstanceId !== transport.hostInstanceId) return;
+
+        const instanceId = safeStr(msg.instanceId);
+        if (!instanceId) return;
+
+        const point = raycastToGround(msg.screen);
+        if (!point) return;
+
+        const existing = editor.instances.get(instanceId);
+        const mesh = existing || makeCrateMesh();
+
+        // Sit on terrain.
+        mesh.position.copy(point);
+        mesh.position.y += 0.5;
+
+        if (!existing) {
+          editor.instances.set(instanceId, mesh);
+          scene.add(mesh);
+        }
+
+        postToHost({
+          type: 'WOW_LITE/ENTITY_UPSERT',
+          schemaVersion: transport.schemaVersion,
+          hostInstanceId: transport.hostInstanceId,
+          instanceId,
+          prefabId: safeStr(msg.prefabId) || 'crate',
+          transform: {
+            pos: [mesh.position.x, mesh.position.y, mesh.position.z],
+            rot: [mesh.quaternion.x, mesh.quaternion.y, mesh.quaternion.z, mesh.quaternion.w],
+            scale: [mesh.scale.x, mesh.scale.y, mesh.scale.z]
+          },
+          now: Date.now()
+        });
+      }
+
+      // Networking / Prediction state (client)
+      const net = {
+        ws: null,
+        connected: false,
+        playerId: null,
+        inputSeq: 0,
+        pendingInputs: [], // un-acked inputs: {seq, moveX, moveZ, yaw, dt}
+        lastServerTick: 0,
+        tickHz: 20
+      };
+
+      function connectWS() {
+        try {
+          net.ws = new WebSocket('ws://localhost:8080');
+        } catch (e) {
+          console.warn('WebSocket not available:', e.message);
+          return;
+        }
+
+        net.ws.addEventListener('open', () => { net.connected = true; addChatMessage('System', 'Connected to server.', 'msg-system'); });
+        net.ws.addEventListener('close', () => { net.connected = false; addChatMessage('System', 'Disconnected from server.', 'msg-system'); });
+        net.ws.addEventListener('message', ev => {
+          let msg;
+          try { msg = JSON.parse(ev.data); } catch { return; }
+          if (msg.type === 'hello') {
+            net.playerId = msg.id; net.tickHz = msg.tickHz || 20; addChatMessage('System', `Assigned playerId=${net.playerId}`, 'msg-system');
+            return;
+          }
+          if (msg.type === 'snap') onServerSnapshot(msg);
+        });
+      }
+
+      // Call connect on load (non-blocking). Opt-in only: ?enableWs=1
+      const ENABLE_LOCAL_WS = (() => {
+        try {
+          return new URLSearchParams(globalThis.location.search).get('enableWs') === '1';
+        } catch {
+          return false;
+        }
+      })();
+
+      if (ENABLE_LOCAL_WS) connectWS();
+
+      // Deterministic local simulator (must match server rules for best results)
+      function simulatePlayerLocal(pos, input, dt) {
+        const SPEED = MOVE_SPEED; // reuse tuned constant
+
+        let moveX = Math.max(-1, Math.min(1, input.moveX || 0));
+        let moveZ = Math.max(-1, Math.min(1, input.moveZ || 0));
+
+        let len = Math.hypot(moveX, moveZ);
+        if (len > 1e-6 && len > 1) { moveX /= len; moveZ /= len; }
+
+        // movement is expressed relative to yaw
+        const yaw = input.yaw || playerGroup.rotation.y || cameraAngle;
+        const sin = Math.sin(yaw), cos = Math.cos(yaw);
+        const wx = moveX * cos + moveZ * sin;
+        const wz = -moveX * sin + moveZ * cos;
+
+        pos.x += wx * SPEED * dt;
+        pos.z += wz * SPEED * dt;
+
+        pos.x = Math.max(-90, Math.min(90, pos.x));
+        pos.z = Math.max(-90, Math.min(90, pos.z));
+
+        return pos;
+      }
+
+      function buildInput() {
+        let moveX = 0, moveZ = 0;
+        if (keys.w) moveZ -= 1;
+        if (keys.s) moveZ += 1;
+        if (keys.a) moveX -= 1;
+        if (keys.d) moveX += 1;
+        const len = Math.hypot(moveX, moveZ);
+        if (len > 1) { moveX /= len; moveZ /= len; }
+        return { moveX, moveZ, yaw: cameraAngle };
+      }
+
+      function sendInputPacket(packet) {
+        if (!net.connected || !net.ws || net.ws.readyState !== 1) return;
+        net.ws.send(JSON.stringify(packet));
+      }
+
+      function onServerSnapshot(snap) {
+        net.lastServerTick = snap.serverTick;
+
+        if (!net.playerId) return;
+        const me = snap.players.find(p => p.id === net.playerId);
+        if (!me) return;
+
+        // Authoritative position
+        const authX = me.x, authZ = me.z;
+
+        // Drop ack'd inputs
+        const ackSeq = snap.ackSeq >>> 0;
+        while (net.pendingInputs.length && (net.pendingInputs[0].seq >>> 0) <= ackSeq) net.pendingInputs.shift();
+
+        // Replay remaining inputs to compute corrected predicted pos
+        let px = authX, pz = authZ;
+        for (const inp of net.pendingInputs) {
+          const p = { x: px, z: pz };
+          simulatePlayerLocal(p, inp, inp.dt || FIXED_DT);
+          px = p.x; pz = p.z;
+        }
+
+        // Compute error vs current local pos
+        const errX = px - playerGroup.position.x;
+        const errZ = pz - playerGroup.position.z;
+        const err2 = errX * errX + errZ * errZ;
+
+        // Snap if far, else smooth-correct
+        if (err2 > 4) { // > 2 units
+          playerGroup.position.x = px;
+          playerGroup.position.z = pz;
+        } else {
+          playerGroup.position.x += errX * 0.35;
+          playerGroup.position.z += errZ * 0.35;
+        }
+
+        // Future: use snapshots to interpolate remote players.
+      }
+
+      function physicsStep(dt) {
+        // Save previous position for interpolation.
+        playerGroup.userData.prevPos = playerGroup.position.clone();
+
+        // Local prediction so the demo moves even without a server.
+        const input = buildInput();
+        simulatePlayerLocal(playerGroup.position, input, dt);
+        playerGroup.rotation.y = input.yaw;
+
+        // Vertical physics under gravity.
+        playerGroup.userData.velocity.y += GRAVITY * dt;
+        playerGroup.position.y += playerGroup.userData.velocity.y * dt;
+
+        // Hard terrain barrier: never allow the capsule root to go below terrain.
+        // The capsule mesh is offset so its bottom is at local y=0, so group.y is the "feet" height.
+        const groundH = getTerrainHeight(playerGroup.position.x, playerGroup.position.z);
+        if (playerGroup.position.y < groundH) {
+          playerGroup.position.y = groundH;
+          if (playerGroup.userData.velocity.y < 0) playerGroup.userData.velocity.y = 0;
+          playerGroup.userData.isJumping = false;
+          playerGroup.userData.onGround = true;
+        } else {
+          playerGroup.userData.onGround = false;
+        }
+      }
+
+      // requestAnimationFrame timing state
+      let lastTime = 0;
+      let accumulator = 0;
+
+      // Main loop using requestAnimationFrame with fixed physics sub-steps
+      function mainLoop(nowMs) {
+        const prevFramePerfMs = telemetry.lastFramePerfMs;
+        const now = nowMs / 1000;
+        if (!lastTime) {
+          lastTime = now;
+        }
+        let frameTime = Math.min(now - lastTime, 0.25); // clamp to avoid spiral of death after tab switches
+        lastTime = now;
+        accumulator += frameTime;
+
+        // Smoothly approach targets to avoid sudden parameter jumps
+        const ramp = Math.max(0, Math.min(1, frameTime / 0.25));
+        MOVE_SPEED += (MOVE_SPEED_TARGET - MOVE_SPEED) * ramp;
+        GRAVITY += (GRAVITY_TARGET - GRAVITY) * ramp;
+        JUMP_SPEED += (JUMP_SPEED_TARGET - JUMP_SPEED) * ramp;
+        MANA_REGEN_RATE += (MANA_REGEN_RATE_TARGET - MANA_REGEN_RATE) * ramp;
+
+        // Send input packet (client-side) for reconciliation/prediction
+        const inpCore = buildInput();
+        const inputPacket = { type: 'input', seq: ++net.inputSeq, moveX: inpCore.moveX, moveZ: inpCore.moveZ, yaw: inpCore.yaw, dt: FIXED_DT };
+        net.pendingInputs.push({ ...inputPacket });
+        sendInputPacket(inputPacket);
+
+        let steps = 0;
+        while (accumulator >= FIXED_DT && steps < MAX_STEPS) {
+          physicsStep(FIXED_DT);
+          accumulator -= FIXED_DT;
+          steps++;
+        }
+
+        // Interpolation alpha (for smooth rendering between physics steps)
+        const alpha = Math.max(0, Math.min(1, accumulator / FIXED_DT));
+        const renderPos = playerGroup.userData.prevPos ? playerGroup.userData.prevPos.clone().lerp(playerGroup.position, alpha) : playerGroup.position.clone();
+
+        // Camera Follow (use interpolated position for smooth visuals)
+        const offsetX = cameraDist * Math.sin(cameraAngle) * Math.cos(cameraPitch);
+        const offsetZ = cameraDist * Math.cos(cameraAngle) * Math.cos(cameraPitch);
+        const offsetY = cameraDist * Math.sin(cameraPitch);
+
+        camera.position.x = renderPos.x + offsetX;
+        camera.position.z = renderPos.z + offsetZ;
+        camera.position.y = renderPos.y + offsetY + 2; // +2 for height offset
+        camera.lookAt(renderPos.x, renderPos.y + 1, renderPos.z);
+
+        // Minimap Update (use interpolated position so the arrow moves smoothly)
+        const mx = (renderPos.x / 200) * 180 + 90;
+        const mz = (renderPos.z / 200) * 180 + 90;
+        const arrow = document.getElementById('minimap-arrow');
+        arrow.style.left = mx + 'px';
+        arrow.style.top = mz + 'px';
+        arrow.style.transform = `translate(-50%, -50%) rotate(${-playerGroup.rotation.y * 180 / Math.PI}deg)`;
+
+        // Update Enemy dots (they are static in this demo)
+        gameState.enemies.forEach(en => {
+          const dot = document.getElementById(`mini-${en.userData.id}`);
+          if (dot) {
+            const ex = (en.position.x / 200) * 180 + 90;
+            const ez = (en.position.z / 200) * 180 + 90;
+            dot.style.left = ex + 'px';
+            dot.style.top = ez + 'px';
+            dot.style.display = en.userData.hp > 0 ? 'block' : 'none';
+          }
+        });
+
+        // Render
+        renderer.render(scene, camera);
+
+        // Best-effort telemetry (does not affect control plane)
+        maybeSendTelemetry(nowMs);
+
+        telemetry.lastFramePerfMs = nowMs || prevFramePerfMs;
+        requestAnimationFrame(mainLoop);
+      }
+
+      // Loading Screen Logic
+      let loadProg = 0;
+      const loadInt = setInterval(() => {
+        loadProg += 5;
+        document.getElementById('loading-progress').style.width = loadProg + '%';
+        if (loadProg >= 100) {
+          clearInterval(loadInt);
+          document.getElementById('loading-screen').style.opacity = 0;
+          setTimeout(() => {
+            document.getElementById('loading-screen').style.display = 'none';
+            // Start main loop after loading finishes
+            requestAnimationFrame(mainLoop);
+          }, 500);
+        }
+      }, 50);
+
+      // Announce readiness to host (capabilities + ranges)
+      sendReady();
+
+    });
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "wow-lite-server",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server.js",
+  "dependencies": {
+    "world-engine-ide": "file:..",
+    "ws": "^8.18.0"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}

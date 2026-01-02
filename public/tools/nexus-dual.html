@@ -1,0 +1,1879 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>NEXUS Dual-Sandbox — Mathadical Brain + Codepad</title>
+
+  <!-- Tailwind (dev-only embed for demo) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: { colors: { bg: '#000000', panel: '#05070c', panel2: '#0a0e16', lime: '#b6ff00', lime2: '#d7ff66', neon: '#ff6a00', neon2: '#ff9a4d', text: '#e8f0ff', muted: '#9aa7b5' }, boxShadow: { glowLime: '0 0 24px rgba(182,255,0,.16)' } } } };
+  </script>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    body {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace
+    }
+  </style>
+</head>
+
+<body class="bg-black text-white">
+  <main x-data="NEXUS_DUAL()" x-init="init()" class="p-4 space-y-4">
+    <h1 class="text-xl font-bold">NEXUS Dual-Sandbox (Demo)</h1>
+
+    <div class="flex items-center gap-3 text-xs bg-gray-900 p-2 rounded">
+      <div class="font-semibold" :class="mode === 'relay' ? 'text-amber-300' : 'text-sky-300'"
+        x-text="mode === 'relay' ? 'RELAY MODE (LIMITED: getState/applyOperator)' : 'SANDBOX MODE'"></div>
+      <template x-if="mode === 'relay'">
+        <div class="text-muted">
+          Relay: <span class="text-white" x-text="relay.status"></span>
+          <template x-if="relay.sessionId">
+            <span> · session <span class="text-white" x-text="relay.sessionId"></span></span>
+          </template>
+        </div>
+      </template>
+      <template x-if="bannerText">
+        <div class="text-amber-200" x-text="bannerText"></div>
+      </template>
+      <div class="ml-auto flex items-center gap-2">
+        <label class="text-xs text-muted" for="modeSelect">Mode</label>
+        <select id="modeSelect" x-model="uiMode" class="bg-gray-800 rounded px-2 py-1">
+          <option value="sandbox">sandbox</option>
+          <option value="relay">relay</option>
+        </select>
+        <button type="button" @click="applyMode()" class="px-2 py-1 bg-gray-700 rounded">Apply</button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-3 gap-4">
+      <div class="col-span-2">
+        <label for="codeInput" class="block text-xs text-muted">Codepad (User code)</label>
+        <textarea id="codeInput" x-model="code" class="w-full h-48 p-2 bg-gray-900 text-xs"
+          placeholder="// user script"></textarea>
+
+        <div class="mt-2 space-x-2 flex items-center gap-2">
+          <button type="button" @click="run()" class="px-3 py-1 bg-green-600 rounded">Run</button>
+          <button type="button" @click="resetCodepad()" class="px-3 py-1 bg-yellow-600 rounded">Reset Codepad</button>
+          <button type="button" @click="brainRequestState()" class="px-3 py-1 bg-blue-600 rounded">Pull Brain
+            State</button>
+
+          <div class="ml-4 flex items-center gap-2">
+            <button type="button" @click="engineRunning ? stopEngine() : startEngine()"
+              class="px-2 py-1 rounded text-xs" :class="engineRunning ? 'bg-red-600' : 'bg-lime-600'">
+              <span x-text="engineRunning ? 'Stop Engine' : 'Start Engine'"></span>
+            </button>
+            <label class="text-xs" for="fpsInput">FPS</label>
+            <input id="fpsInput" x-model.number="fps" @change="updateEngineFps()" type="number" min="1" max="240"
+              class="w-16 p-1 bg-gray-900 rounded text-xs" />
+
+            <button type="button" @click="renderRunning ? stopRender() : startRender()"
+              class="px-2 py-1 rounded text-xs" :class="renderRunning ? 'bg-red-600' : 'bg-sky-600'"> <span
+                x-text="renderRunning ? 'Stop Render' : 'Start Render'"></span></button>
+
+            <label class="text-xs flex items-center gap-1"><input type="checkbox" x-model="overlayGhost" />
+              Ghost</label>
+            <label class="text-xs flex items-center gap-1"><input type="checkbox" x-model="overlayHitbox" />
+              Hitbox</label>
+            <label class="text-xs flex items-center gap-1"><input type="checkbox" x-model="overlayCollisions" />
+              Collisions</label>
+            <label class="text-xs flex items-center gap-1"><input type="checkbox" x-model="overlayHeatmap" />
+              Heatmap</label>
+            <label class="text-xs flex items-center gap-1"><input type="checkbox" x-model="overlayClusters" />
+              Clusters</label>
+            <label class="text-xs flex items-center gap-1"><input type="checkbox" x-model="overlayInterp" />
+              Interp</label>
+            <label class="text-xs flex items-center gap-1">Speed: <input type="number" step="0.05" min="0" max="1"
+                x-model.number="interpFactor" class="w-20 p-1 bg-gray-900 rounded text-xs" /></label>
+            <label class="text-xs flex items-center gap-1">Heatmap Grid: <input type="number" min="8" max="128" step="1"
+                x-model.number="overlayHeatmapResolution" class="w-20 p-1 bg-gray-900 rounded text-xs" /></label>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <div id="consoleLabel" class="block text-xs text-muted">Console</div>
+          <div id="consoleOutput" role="log" aria-labelledby="consoleLabel"
+            class="h-32 overflow-auto p-2 bg-gray-900 text-xs" x-text="consoleText"></div>
+
+          <div class="mt-2 text-xs">
+            <strong>Benchmark:</strong>
+            <div x-text="benchmarkResult ? JSON.stringify(benchmarkResult) : 'No result'" class="mt-1"></div>
+          </div>
+
+          <div class="mt-2 text-xs">
+            <strong>Telemetry</strong>
+            <div class="mt-1 flex items-center gap-2">
+              <label class="text-xs"><input type="checkbox" x-model="telemetryAuto" /> Auto</label>
+              <label class="text-xs">Interval: <input type="number" min="10" step="10"
+                  x-model.number="telemetryInterval" class="w-20 p-1 bg-gray-900 rounded text-xs" /></label>
+              <button type="button" @click="runTelemetrySummary()" class="px-2 py-1 bg-emerald-600 rounded text-xs">Run
+                Telemetry</button>
+            </div>
+            <div class="mt-1 text-xs"><small
+                x-text="telemetrySummary ? telemetrySummary.short || ('Tick ' + telemetrySummary.tick + ': ' + telemetrySummary.totalEntities + ' entities') : 'No telemetry yet'"></small>
+            </div>
+
+            <!-- Consultant (mock LLM) -->
+            <div class="mt-3 p-2 bg-gray-800 rounded">
+              <div class="flex items-center gap-2">
+                <label class="text-xs">
+                  <input type="checkbox" x-model="consultantAuto" /> Auto-Consult
+                </label>
+                <button type="button" @click="consultSimulation()" class="px-2 py-1 bg-sky-600 rounded text-xs"
+                  :disabled="consultantLoading">Ask Consultant</button>
+                <button type="button" @click="consultSimulation(true)" class="px-2 py-1 bg-indigo-600 rounded text-xs"
+                  :disabled="consultantLoading">Ask (Force)</button>
+                <button type="button" @click="applyRecommendation()" class="px-2 py-1 bg-emerald-600 rounded text-xs"
+                  :disabled="!consultantRecommendation">Apply Recommendation</button>
+                <button type="button" @click="consultantResponse = ''; consultantRecommendation = null"
+                  class="px-2 py-1 bg-gray-700 rounded text-xs">Clear</button>
+                <button type="button" @click="exportAuditLog()" class="px-2 py-1 bg-gray-600 rounded text-xs">Export
+                  Audit</button>
+              </div>
+              <div class="mt-2 text-xs">
+                <div><strong>Consultant:</strong></div>
+
+                <div class="mt-2 flex items-center gap-2">
+                  <input x-model="consultantEndpoint" placeholder="consultant endpoint (e.g. /api/consultant)"
+                    aria-label="consultant endpoint" class="p-1 bg-gray-900 rounded text-xs w-full" />
+                  <button type="button" @click="testConsultantEndpoint()" class="px-2 py-1 bg-amber-600 rounded text-xs"
+                    :disabled="consultantLoading">Test</button>
+                </div>
+
+                <div class="mt-2 p-2 bg-gray-900 text-xs rounded text-amber-200"
+                  x-text="consultantResponse || 'No recommendation yet'"></div>
+                <template x-if="consultantRecommendation">
+                  <div class="mt-2 text-xs text-muted">Suggested action: <strong
+                      x-text="consultantRecommendation.action"></strong> (<span
+                      x-text="(consultantRecommendation.confidence*100).toFixed(0) + '%'"></span>)</div>
+                </template>
+                <div class="mt-2 text-xs text-muted"><small>Tip: run a secure server-side proxy to an LLM (or point to a
+                    local Ollama proxy)</small></div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="mt-3 p-2 bg-gray-800 rounded">
+            <div class="text-sm font-semibold mb-2">Overlay Benchmark</div>
+            <div class="flex items-center gap-2 text-xs">
+              <label class="text-xs">Count: <input type="number" min="100" step="100"
+                  x-model.number="overlayBenchmarkCount" class="w-24 p-1 bg-gray-900 rounded text-xs" /></label>
+              <button type="button" id="btn-run-overlay-bench"
+                @click="benchmarkOverlayPerf(overlayBenchmarkCount || 10000)"
+                class="px-2 py-1 bg-indigo-600 rounded text-xs">Run Overlay Benchmark</button>
+              <button type="button" @click="exportOverlayBenchmark()"
+                class="px-2 py-1 bg-gray-600 rounded text-xs">Export</button>
+              <div class="text-xs text-muted ml-2" id="overlay-benchmark-result"
+                x-text="overlayBenchmarkResult ? JSON.stringify(overlayBenchmarkResult) : ''"></div>
+              <div class="text-xs text-muted ml-2" x-show="overlaySuggestedResolution">Suggested resolution: <strong
+                  x-text="overlaySuggestedResolution"></strong> <button type="button"
+                  @click="applyOverlaySuggestedResolution()"
+                  class="ml-2 px-1 py-0 bg-amber-600 rounded text-xs">Apply</button></div>
+            </div>
+          </div>
+
+          <div class="mt-3 p-2 bg-gray-800 rounded">
+            <div class="text-sm font-semibold mb-2">Spawn Entity</div>
+
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <input x-model="spawnForm.type" class="p-1 bg-gray-900 rounded" placeholder="type (e.g. orc)"
+                aria-label="spawn-type" />
+              <input x-model.number="spawnForm.x" type="number" class="p-1 bg-gray-900 rounded" placeholder="x"
+                aria-label="spawn-x" />
+              <input x-model.number="spawnForm.y" type="number" class="p-1 bg-gray-900 rounded" placeholder="y"
+                aria-label="spawn-y" />
+              <input x-model.number="spawnForm.health" type="number" class="p-1 bg-gray-900 rounded"
+                placeholder="health" aria-label="spawn-health" />
+              <label class="col-span-2 text-xs flex items-center gap-2"><input type="checkbox"
+                  x-model="spawnForm.dynamic" /> Dynamic (physics)</label>
+            </div>
+
+            <div class="mt-2 flex gap-2 items-center">
+              <button type="button" @click="spawnEntity()" class="px-2 py-1 bg-green-600 rounded text-xs">Spawn</button>
+              <button type="button" @click="refreshEntities()" class="px-2 py-1 bg-blue-600 rounded text-xs">Refresh
+                Entities</button>
+              <button type="button" @click="spawnGravityWell()" class="px-2 py-1 bg-amber-600 rounded text-xs">Spawn
+                Gravity
+                Well</button>
+              <button type="button" @click="simulateSensor()" class="px-2 py-1 bg-purple-600 rounded text-xs">Sensor
+                Emit</button>
+              <button type="button" @click="testGravity()" class="px-2 py-1 bg-rose-600 rounded text-xs">Test
+                Gravity</button>
+              <button type="button" @click="benchmarkGetState(10000)"
+                class="px-2 py-1 bg-indigo-600 rounded text-xs">Benchmark
+                10k</button>
+
+              <div class="mt-3 text-sm font-semibold">Entities</div>
+              <div class="mt-1 h-28 overflow-auto p-1 bg-gray-900 text-xs rounded">
+                <template x-if="entities && entities.length">
+                  <template x-for="e in entities" :key="e.id">
+                    <div class="p-1 border-b border-gray-700 flex items-center justify-between">
+                      <div>
+                        <div><strong x-text="e.type"></strong> <span class="text-muted text-xs">#<span
+                              x-text="e.id"></span></span></div>
+                        <div class="text-xs text-muted">x:<span x-text="e.x"></span> y:<span x-text="e.y"></span>
+                          hp:<span x-text="e.health"></span></div>
+                      </div>
+                      <div class="flex gap-2">
+                        <button type="button" @click="queryEntity(e.id)"
+                          class="px-2 py-1 bg-gray-700 rounded text-xs">Query</button>
+                        <button type="button" @click="removeEntity(e.id)"
+                          class="px-2 py-1 bg-red-600 rounded text-xs">Delete</button>
+                      </div>
+                    </div>
+                  </template>
+                </template>
+                <template x-if="!entities || entities.length===0">
+                  <div class="text-muted">No entities — use Spawn to create one</div>
+                </template>
+              </div>
+
+              <div class="mt-2">
+                <canvas id="entityCanvas"
+                  style="width:100%; height:120px; border-radius:6px; background:#05070c; display:block"></canvas>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <aside class="bg-gray-900 p-2">
+          <div class="mb-2"><strong>Brain State (snapshot)</strong></div>
+          <pre class="h-32 overflow-auto text-xs" x-text="JSON.stringify(brain.state, null, 2)"></pre>
+
+          <div style="margin-top:8px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <strong>Snapshots</strong>
+              <div>
+                <button type="button" @click="refreshSnapshots()"
+                  class="px-2 py-1 bg-blue-600 rounded text-xs">Refresh</button>
+                <button type="button" @click="purgeSnapshots()"
+                  class="px-2 py-1 bg-red-600 rounded text-xs">Purge</button>
+              </div>
+            </div>
+
+            <div class="mt-2 h-36 overflow-auto p-1 bg-gray-800 text-xs rounded">
+              <template x-if="snapshots && snapshots.length">
+                <template x-for="s in snapshots" :key="s.idx">
+                  <div class="p-1 border-b border-gray-700 flex items-center justify-between">
+                    <div>
+                      <div class="text-[11px]">Snapshot <span class="text-lime2" x-text="s.idx"></span></div>
+                      <div class="text-[11px] text-muted" x-text="new Date(s.t).toLocaleString()"></div>
+                    </div>
+                    <div class="flex" style="gap:6px">
+                      <button type="button" @click="previewSnapshot(s.idx)"
+                        class="px-2 py-1 bg-gray-700 rounded text-xs">Preview</button>
+                      <button type="button" @click="restoreSnapshot(s.idx)"
+                        class="px-2 py-1 bg-green-600 rounded text-xs">Restore</button>
+                    </div>
+                  </div>
+                </template>
+              </template>
+              <template x-if="!snapshots || snapshots.length===0">
+                <div class="text-muted">No snapshots available — press Refresh to load</div>
+              </template>
+            </div>
+
+            <div class="mt-2">
+              <strong>Preview</strong>
+              <pre class="h-28 overflow-auto bg-gray-900 text-xs p-2 rounded" x-text="snapshotPreview"></pre>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <div class="text-sm text-muted">This demo uses two hidden iframes: Brain (A) and Codepad (B). The parent acts as
+        the
+        message broker.</div>
+
+      <iframe id="brainFrame" title="brain-sandbox" sandbox="allow-scripts" class="hidden"></iframe>
+      <iframe id="codepadFrame" title="codepad-sandbox" sandbox="allow-scripts" class="hidden"></iframe>
+  </main>
+
+  <script>
+    /* eslint-disable no-inner-declarations */
+    // Top-level srcdoc builders (moved out of NEXUS_DUAL for linting)
+    function brainSrcdoc() {
+      // Simplified brain with tick heartbeat and normalized tables
+      return `<!doctype html><html><body><script>
+(function(){
+  const send=(kind,payload,replyTo)=>parent.postMessage({__nexus:true,from:'brain',kind,payload,replyTo},'*');
+  const Code={OK:'OK',DIV_ZERO:'DIV_ZERO',NEG_SQRT:'NEG_SQRT'};
+  const ok=(v)=>({ok:true,value:v,code:Code.OK});
+  const err=(c,m)=>({ok:false,value:null,code:c,message:m});
+
+  // Normalized world tables
+  const world = { entities: {}, table: [], nextId:0 };
+
+  // Simple spatial hash index for viewport queries
+  const spatialIndex = {
+    cellSize: 128,
+    cells: new Map(),
+    _cellKey(x,y){ const cx = Math.floor(x/this.cellSize); const cy = Math.floor(y/this.cellSize); return cx + ',' + cy; },
+    add(id, e){ const k = this._cellKey(e.x||0, e.y||0); if(!this.cells.has(k)) this.cells.set(k, new Set()); this.cells.get(k).add(id); },
+    remove(id, e){ const k = this._cellKey(e.x||0, e.y||0); const s = this.cells.get(k); if(s){ s.delete(id); if(s.size===0) this.cells.delete(k); } },
+    update(id, e, prev){ const oldKey = prev ? this._cellKey(prev.x||0, prev.y||0) : null; const newKey = this._cellKey(e.x||0, e.y||0); if(oldKey && oldKey!==newKey){ const s = this.cells.get(oldKey); if(s){ s.delete(id); if(s.size===0) this.cells.delete(oldKey); } } if(!this.cells.has(newKey)) this.cells.set(newKey, new Set()); this.cells.get(newKey).add(id); },
+    query(bounds){ // returns ids intersecting bounds
+      const minCx = Math.floor(bounds.x / this.cellSize); const maxCx = Math.floor((bounds.x + bounds.w) / this.cellSize);
+      const minCy = Math.floor(bounds.y / this.cellSize); const maxCy = Math.floor((bounds.y + bounds.h) / this.cellSize);
+      const out = new Set(); for(let cx=minCx; cx<=maxCx; cx++){ for(let cy=minCy; cy<=maxCy; cy++){ const k = cx + ',' + cy; const s = this.cells.get(k); if(s){ for(const id of s) out.add(id); } } } return Array.from(out);
+    }
+  };
+
+  function addEntity(type, props){ const id = world.nextId++; const massDefault = (type === 'gravity_well') ? (props && props.mass) || 100 : (props && props.mass) || 1; const e = { id, type, x: props.x||0, y: props.y||0, vx: props.vx||0, vy: props.vy||0, health: props.health||0, dynamic: !!props.dynamic, size: props.size||8, mass: massDefault, radius: props.radius||8 }; world.entities[id]=e; world.table.push(id); spatialIndex.add(id,e); return e; }
+
+  // Collision guard (AABB)
+  Mathadics.guard.collide = (a, b) => {
+    try {
+      if (!a || !b) return err('ARG','invalid entity');
+      const ax = Number(a.x||0), ay = Number(a.y||0), as = Number(a.size||8);
+      const bx = Number(b.x||0), by = Number(b.y||0), bs = Number(b.size||8);
+      if (!Number.isFinite(ax) || !Number.isFinite(ay) || !Number.isFinite(bx) || !Number.isFinite(by)) return err(Code.NON_FINITE, 'non-finite coord');
+      const aminx = ax - as/2, amaxx = ax + as/2, aminy = ay - as/2, amaxy = ay + as/2;
+      const bminx = bx - bs/2, bmaxx = bx + bs/2, bminy = by - bs/2, bmaxy = by + bs/2;
+      const collided = !(amaxx < bminx || bmaxx < aminx || amaxy < bminy || bmaxy < aminy);
+      return ok({ collided });
+    } catch (e) { return err(Code.DOMAIN, 'collision error'); }
+  };
+
+  // Gravity (inverse-square) guard with softening to avoid singularities
+  Mathadics.guard.gravity = (m1, m2, distance, G = 1) => {
+    try {
+      const finite = (x) => Number.isFinite(x);
+      if (!finite(m1) || !finite(m2) || !finite(distance)) return err(Code.NON_FINITE, 'invalid gravity inputs');
+      const epsilon = 0.5; // softening
+      const force = (G * m1 * m2) / (distance * distance + epsilon);
+      return ok(force);
+    } catch (e) { return err(Code.DOMAIN, 'gravity error'); }
+  };
+
+
+  // Example initial world
+  addEntity('player',{x:10,y:20,health:100});
+  addEntity('orc',{x:50,y:60,health:40});
+
+  // Ring of snapshots
+  const snapshots = [];
+  const SNAP_MAX = 20;
+
+  function snapshot(){
+    const s = { t:Date.now(), entities: JSON.parse(JSON.stringify(world.entities)), table: world.table.slice() };
+    snapshots.unshift(s); if(snapshots.length>SNAP_MAX) snapshots.pop();
+    return s;
+  }
+
+  // Engine tick and delta compression
+  let lastSentSnapshot = null;
+
+  function computeDelta(newS, oldS){
+    const delta = { updated: {}, removed: [] };
+    if (!oldS || !oldS.entities) {
+      delta.updated = JSON.parse(JSON.stringify(newS.entities || {}));
+      return delta;
+    }
+    const newEntities = newS.entities || {};
+    const oldEntities = oldS.entities || {};
+
+    // updated or added
+    for (const id of Object.keys(newEntities)){
+      const a = JSON.stringify(newEntities[id]);
+      const b = JSON.stringify(oldEntities[id] || null);
+      if (a !== b) delta.updated[id] = newEntities[id];
+    }
+    // removed
+    for (const id of Object.keys(oldEntities)){
+      if (!(id in newEntities)) delta.removed.push(id);
+    }
+    return delta;
+  }
+
+  // subscriptions: subscription id -> { opts, lastSnapshot }
+  const subscriptions = new Map();
+
+  function snapshotForBounds(bounds){
+    // bounds: { x,y,w,h }
+    if (!bounds) return snapshot();
+    // limit to ids in spatialIndex
+    const ids = spatialIndex.query(bounds || { x:0, y:0, w:0, h:0 });
+    const ents = {};
+    for(const id of ids){ const e = world.entities[id]; if (e) ents[id] = JSON.parse(JSON.stringify(e)); }
+    return { t: Date.now(), entities: ents, table: Object.keys(ents) };
+  }
+
+  function mapEntitiesToLod(snapshot, lod){
+    if (!snapshot || !snapshot.entities) return snapshot;
+    const out = { t: snapshot.t, entities: {} };
+    for(const id of Object.keys(snapshot.entities)){
+      const e = snapshot.entities[id];
+      if (lod === 0) { out.entities[id] = e; }
+      else if (lod === 1) { out.entities[id] = { id: e.id, x: e.x, y: e.y, r: e.size, color: e.color }; }
+      else if (lod === 2) { out.entities[id] = { id: e.id, x: e.x, y: e.y }; }
+      else { /* lod >=3 : omit per-entity detail (could aggregate) */ out.entities[id] = { id: e.id }; }
+    }
+    return out;
+  }
+
+  function engineTick(dt){
+    // apply simple rules: velocity/position
+    for(const id of world.table){
+      const e = world.entities[id];
+      const prev = { x: e.x, y: e.y };
+      if (typeof e.vx === 'number') e.x += e.vx * (dt || 1);
+      if (typeof e.vy === 'number') e.y += e.vy * (dt || 1);
+      if (e.dynamic) { e.vy = (e.vy||0) + 9.8 * (dt || 1); e.y += (e.vy||0) * (dt || 1); }
+      spatialIndex.update(id, e, prev);
+    }
+    const s = snapshot();
+    const delta = computeDelta(s, lastSentSnapshot);
+    lastSentSnapshot = JSON.parse(JSON.stringify(s));
+
+    // send full tick notice
+    send('BRAIN_TICK',{ snapshot: s, delta });
+
+    // notify subscriptions (scoped snapshots/deltas)
+    for (const [subId, sObj] of subscriptions.entries()){
+      try {
+        const opts = sObj.opts || {};
+        const bounds = opts.bounds || { x:0, y:0, w:1000, h:1000 };
+        const newSnap = snapshotForBounds(bounds);
+        const scopedDelta = computeDelta(newSnap, sObj.lastSnapshot);
+        sObj.lastSnapshot = JSON.parse(JSON.stringify(newSnap));
+        send('BRAIN_SUB', { subId, snapshot: newSnap, delta: scopedDelta });
+      } catch(e){ /* ignore */ }
+    }
+
+    return ok({ tick:true, deltaCount: Object.keys(delta.updated).length });
+  }
+
+  // Atomic world step: physics + collision checks
+  function worldStep(dt){
+    const entities = world.table.map(id => world.entities[id]);
+    // 1. physics update
+    entities.forEach(ent => {
+      const prev = { x: ent.x, y: ent.y };
+      if (typeof ent.vx === 'number') ent.x += ent.vx * (dt || 1);
+      if (typeof ent.vy === 'number') ent.y += ent.vy * (dt || 1);
+      if (ent.dynamic) { ent.vy = (ent.vy||0) + 9.8 * (dt || 1); ent.y += (ent.vy||0) * (dt || 1); }
+      spatialIndex.update(ent.id, ent, prev);
+    });
+    // 2. collisions
+    const collisions = [];
+    for (let i = 0; i < entities.length; i++){
+      for (let j = i+1; j < entities.length; j++){
+        const a = entities[i]; const b = entities[j];
+        const cres = Mathadics.guard.collide(a,b);
+        if (cres && cres.ok && cres.value && cres.value.collided) collisions.push({ a:a.id, b:b.id });
+      }
+    }
+    // snapshot & emit
+    state.world = state.world || { tick:0 };
+    state.world.tick = (state.world.tick||0) + 1;
+    const s = snapshot();
+    const delta = computeDelta(s, lastSentSnapshot);
+    lastSentSnapshot = JSON.parse(JSON.stringify(s));
+    send('BRAIN_TICK', { snapshot: s, delta, collisions, tick: state.world.tick });
+
+    // notify subscriptions (scoped snapshots/deltas)
+    for (const [subId, sObj] of subscriptions.entries()){
+      try {
+        const opts = sObj.opts || {};
+        const bounds = opts.bounds || { x:0, y:0, w:1000, h:1000 };
+        const newSnap = snapshotForBounds(bounds);
+        const scopedDelta = computeDelta(newSnap, sObj.lastSnapshot);
+        sObj.lastSnapshot = JSON.parse(JSON.stringify(newSnap));
+        send('BRAIN_SUB', { subId, snapshot: newSnap, delta: scopedDelta, tick: state.world.tick });
+      } catch(e){ /* ignore */ }
+    }
+
+    audit({ type:'worldStep', tick: state.world.tick, collisions: collisions.length });
+    return ok({ tick: state.world.tick, collisions });
+  }
+
+  // Hook heartbeat to engineTick by default (can use worldStep via RPC)
+  setInterval(()=>{ engineTick(1); }, 1000);
+
+  // RPC ops
+  const OPS = {
+   ... (truncated for brevity) ...
+  };
+
+  window.addEventListener('message',(e)=>{ const m=e.data; if(!m||!m.__nexus) return; if(m.to!=='brain') return; if(m.kind==='PING') return send('PONG',{ok:true},m.reqId);
+    if(m.kind==='OP'){ const { op, args }=m.payload||{}; const res = (OPS[op]||(()=>err('NOOP')))(args||[]); send('BRAIN_REPLY',{ op, args, res }, m.reqId); }
+  });
+
+  send('READY',{ok:true,notes:'brain booted'});
+})();
+</scr` + `ipt></body></html>`;
+    }
+
+    function codepadSrcdoc() {
+      // Minimal codepad: forwards requests to parent and prints replies.
+      return String.raw`<!doctype html><html><body><script>
+(() => {
+  const send = (kind, payload, reqId, replyTo) => {
+    parent.postMessage({ __nexus: true, from: 'codepad', kind, payload, reqId, replyTo }, '*');
+  };
+
+  const pending = new Map();
+
+  function requestBrain(op, args) {
+    const reqId = 'cp-' + Math.random().toString(16).slice(2);
+    return new Promise((resolve) => {
+      pending.set(reqId, resolve);
+      send('EXECUTE_REQUEST_BRAIN', { op, args: Array.isArray(args) ? args : [] }, reqId);
+      setTimeout(() => {
+        if (!pending.has(reqId)) return;
+        pending.delete(reqId);
+        resolve({ op, args, res: { ok: false, code: 'TIMEOUT', message: 'codepad brain request timeout' } });
+      }, 1800);
+    });
+  }
+
+  window.addEventListener('message', (e) => {
+    const m = e.data;
+    if (!m || !m.__nexus) return;
+    if (m.to !== 'codepad') return;
+
+    if (m.kind === 'EXECUTE_REQUEST_BRAIN') {
+      // Parent asked codepad to request brain through the broker.
+      const p = m.payload || {};
+      send('EXECUTE_REQUEST_BRAIN', { op: p.op, args: p.args || [] }, m.reqId);
+      return;
+    }
+
+    if (m.kind === 'BRAIN_REPLY') {
+      const key = m.replyTo;
+      const resolver = key ? pending.get(key) : null;
+      if (resolver) {
+        pending.delete(key);
+        resolver(m.payload);
+      }
+      send('CONSOLE', { text: '[CODEPAD] brain reply received' });
+      return;
+    }
+  });
+
+  // Expose a tiny API for manual experimentation (optional)
+  window.API = {
+    getState: () => requestBrain('getState', []),
+    applyOperator: (operator, params) => requestBrain('applyOperator', [operator, params])
+  };
+
+  send('READY', { ok: true, notes: 'codepad booted' });
+})();
+</scr` + `ipt></body></html>`;
+    }
+
+    /* codepadSrcdoc moved to top-level */
+
+    function NEXUS_DUAL() {
+
+
+      /* brainSrcdoc moved to top-level */
+      // Hook heartbeat to engineTick by default (can use worldStep via RPC)
+      setInterval(() => { engineTick(1); }, 1000);
+
+      // RPC ops
+      const OPS = {
+        // getState supports optional args: { bounds:{x,y,w,h}, lod:number, limit:number }
+        getState: (args) => {
+          const opts = (args && args[0]) || {};
+          if (!opts || Object.keys(opts).length === 0) return ok({ snapshot: snapshot() });
+          const bounds = opts.bounds || null;
+          const lod = typeof opts.lod === 'number' ? opts.lod : 1;
+          const limit = typeof opts.limit === 'number' ? opts.limit : 2000;
+          const snap = bounds ? snapshotForBounds(bounds) : snapshot();
+          const mapped = mapEntitiesToLod(snap, lod);
+          // apply limit by truncating keys
+          const ids = Object.keys(mapped.entities).slice(0, limit);
+          const limited = { t: mapped.t, entities: {} };
+          for (const id of ids) limited.entities[id] = mapped.entities[id];
+          return ok({ snapshot: limited, total: Object.keys(mapped.entities).length });
+        },
+
+        setVar: (args) => {
+          const [k, v] = args;
+          world.vars = world.vars || {};
+          world.vars[k] = v;
+          return ok(true);
+        },
+        calc: (args) => {
+          const [op, a, b] = args;
+          if (op === 'div') {
+            if (b === 0) return err(Code.DIV_ZERO, 'div by zero');
+            return ok(a / b);
+          }
+          return err('UNKNOWN', 'unknown op');
+        },
+
+        // Entity / World ops
+        spawnEntity: (args) => {
+          const [type, props] = args || [];
+          if (!type) return err('ARG', 'spawnEntity expects [type, props]');
+          const e = addEntity(type, props || {});
+          audit({ type: 'spawn', id: e.id, entity: e });
+          return ok(e);
+        },
+        removeEntity: (args) => {
+          const id = args && args[0];
+          if (id === undefined) return err('ARG', 'removeEntity expects [id]');
+          if (!Object.hasOwn(world.entities, id)) return err('ARG', 'entity not found');
+          const e = world.entities[id];
+          delete world.entities[id];
+          world.table = world.table.filter(x => x !== id);
+          spatialIndex.remove(id, e);
+          audit({ type: 'remove', id, t: Date.now() });
+          return ok(true);
+        },
+        queryEntities: (args) => {
+          const [key, op, value] = args || [];
+          const out = [];
+          for (const id of world.table) {
+            const e = world.entities[id];
+            if (!key) { out.push(e); continue; }
+            const v = e[key];
+            const match = (
+              (op === 'lt' && v < value) ||
+              (op === 'lte' && v <= value) ||
+              (op === 'gt' && v > value) ||
+              (op === 'gte' && v >= value) ||
+              (op === 'eq' && v === value)
+            );
+            if (match) out.push(e);
+          }
+          return ok(out);
+        },
+        engineTick: (args) => {
+          const dt = (args && args[0]) || 1;
+          return engineTick(dt);
+        },
+        worldStep: (args) => {
+          const dt = (args && args[0]) || 1;
+          return worldStep(dt);
+        },
+
+        // subscriptions
+        subscribeState: (args) => {
+          const opts = (args && args[0]) || {};
+          const subId = 's-' + Math.random().toString(16).slice(2);
+          subscriptions.set(subId, { opts, lastSnapshot: null, created: Date.now() });
+          return ok({ subId });
+        },
+        unsubscribeState: (args) => {
+          const subId = (args && args[0]);
+          if (!subscriptions.has(subId)) return err('ARG', 'subscription not found');
+          subscriptions.delete(subId);
+          return ok(true);
+        },
+
+        // Benchmark: spawn many entities and run getState timings
+        benchmarkGetState: (args) => {
+          const n = (args && args[0]) || 10000; const runs = (args && args[1] && args[1].runs) || 5; const area = (args && args[1] && args[1].area) || 10000;
+          // spawn n entities in a random area
+          for (let i = 0; i < n; i++) {
+            const x = (Math.random() - 0.5) * area;
+            const y = (Math.random() - 0.5) * area;
+            addEntity('bench', { x, y, vx: 0, vy: 0, health: 10, size: 4 });
+          }
+          // warmup
+          const bounds = { x: -area / 2, y: -area / 2, w: area, h: area };
+          const times = [];
+          for (let r = 0; r < runs; r++) {
+            const t0 = performance.now();
+            OPS.getState([{ bounds, lod: 1, limit: 5000 }]);
+            const t1 = performance.now();
+            times.push(Math.round(t1 - t0));
+          }
+          const sum = times.reduce((a, b) => a + b, 0); const avg = Math.round(sum / times.length);
+          const result = { runs, n, times, avg };
+          send('BENCH_RESULT', { result });
+          return ok(result);
+        },
+
+        /* codepadSrcdoc inner copy removed */
+
+
+
+        /* inner codepad srcdoc removed */
+      }
+
+      return {
+        code: localStorage.getItem('nexus.code.demo') || '// try: const s = await API.getState(); console.log(s);',
+        consoleText: '',
+        brain: { state: {} },
+        brainFrame: null, codepadFrame: null,
+        brainReady: false, codepadReady: false,
+
+        // mode switching
+        modeRequested: 'sandbox',
+        mode: 'sandbox',
+        uiMode: 'sandbox',
+        bannerText: '',
+
+        // relay (real Brain) transport
+        relay: {
+          wsUrl: 'ws://localhost:9000',
+          ws: null,
+          status: 'disconnected',
+          sessionId: null,
+          lastSnapshot: null,
+          pending: []
+        },
+
+        init() {
+          this.brainFrame = document.getElementById('brainFrame'); this.codepadFrame = document.getElementById('codepadFrame');
+
+          const qs = new URLSearchParams(globalThis.location && globalThis.location.search ? globalThis.location.search : '');
+          const requested = (qs.get('mode') === 'relay') ? 'relay' : 'sandbox';
+          this.modeRequested = requested;
+          this.mode = requested;
+          this.uiMode = requested;
+
+          const wsUrl = String(qs.get('ws') || 'ws://localhost:9000');
+          this.relay.wsUrl = wsUrl;
+
+          this.codepadFrame.srcdoc = codepadSrcdoc();
+          if (this.mode === 'relay') {
+            this.brainFrame.srcdoc = '';
+            this.connectRelay();
+          } else {
+            this.bootSandboxBrain();
+          }
+
+          // Initial load of UI data
+          setTimeout(() => { this.refreshSnapshots(); this.refreshEntities(); }, 500);
+
+          // Engine heartbeat state
+          this.engineId = null;
+          this.engineRunning = false;
+          this.fps = this.fps || 30;
+
+          // rendering state
+          this.renderId = null;
+          this.renderRunning = false;
+          this.renderFps = 60;
+          this.overlayGhost = true;
+          this.overlayHitbox = true;
+          this.overlayCollisions = true;
+          this.overlayHeatmap = true;
+          this.overlayClusters = true;
+          this.overlayInterp = true; // interpolation enabled by default
+          this.interpFactor = 0.3; // per-frame smoothing factor (0..1)
+
+          // telemetry state
+          this.telemetryBuffer = [];
+          this.telemetryInterval = 100; // ticks
+          this.telemetryAuto = true;
+          this.lastTelemetryTick = 0;
+          this.telemetrySummary = null;
+          // overlay benchmark state
+          this.overlayBenchmarkCount = 10000;
+          this.overlayBenchmarkResult = null;
+          this.overlayHeatmapResolution = 40; // grid resolution for heatmap (cols=rows)
+          this.overlaySuggestedResolution = null;
+
+          // Consultant (mock LLM) state
+          this.consultantAuto = false; // auto-run consultant when telemetry suggests
+          this.consultantLoading = false;
+          this.consultantResponse = '';
+          this.consultantRecommendation = null;
+          // Endpoint for real LLM proxy (leave empty to use mock)
+          this.consultantEndpoint = '';
+          this.consultantTimeoutMs = 3000; // timeout for remote consultant calls
+          // Dry-run / safety controls
+          this.consultantDryRun = true; // if true, show preview and do not execute
+          this.consultantSafety = 'medium'; // 'low'|'medium'|'high'
+          this.pendingAction = null; // preview of pending action before confirmation
+
+          // Guardrails and safety defaults
+          this.consultantMinIntervalMs = 5000; // min interval between consultant calls
+          this.lastConsultantAt = 0;
+          this.consultantApplyConfidence = 0.6; // minimum confidence to apply automatically
+          this.consultantAllowedActions = ['increase_cellSize', 'reduce_dt', 'purge_snapshots', 'none'];
+
+          // Audit log for consultant actions (persisted in localStorage)
+          this.auditLog = JSON.parse(localStorage.getItem('nexus.auditLog') || '[]');
+          this.auditKey = 'nexus.auditLog';
+          window.addEventListener('message', (e) => {
+            const m = e.data; if (!m || !m.__nexus) return;
+            try {
+              if (m.from === 'brain') { this.handleBrainMessage(m); return; }
+              if (m.from === 'codepad') { this.handleCodepadMessage(m); return; }
+              // fallback for messages missing a 'from' field
+              if (m.kind === 'BRAIN_SUB') { this.onBrainSub(m); return; }
+              if (m.kind === 'BENCH_RESULT') { this.onBenchResult(m); return; }
+              if (m.kind === 'BRAIN_RESTORED') { this.onBrainRestored(m); return; }
+            } catch (err) { console.warn('message dispatch failed', err); }
+          });
+        },
+
+        applyMode() {
+          const next = (this.uiMode === 'relay') ? 'relay' : 'sandbox';
+          const qs = new URLSearchParams(globalThis.location && globalThis.location.search ? globalThis.location.search : '');
+          if (next === 'relay') qs.set('mode', 'relay');
+          else qs.delete('mode');
+          const newSearch = qs.toString();
+          globalThis.location.search = newSearch ? ('?' + newSearch) : '';
+        },
+
+        bootSandboxBrain() {
+          this.mode = 'sandbox';
+          this.bannerText = this.bannerText || '';
+          this.brainReady = false;
+          try { this.brainFrame.srcdoc = brainSrcdoc(); } catch (e) { console.warn('bootSandboxBrain failed', e); }
+        },
+
+        relaySend(obj) {
+          const ws = this.relay.ws;
+          if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+          try { ws.send(JSON.stringify(obj)); return true; } catch { return false; }
+        },
+
+        disconnectRelay() {
+          try {
+            const ws = this.relay.ws;
+            if (ws) {
+              try { ws.onopen = null; ws.onclose = null; ws.onerror = null; ws.onmessage = null; } catch { }
+              try { ws.close(); } catch { }
+            }
+          } catch { }
+          this.relay.ws = null;
+          this.relay.status = 'disconnected';
+          this.relay.sessionId = null;
+        },
+
+        connectRelay() {
+          this.disconnectRelay();
+          this.mode = 'relay';
+          this.relay.status = 'connecting';
+          this.relay.sessionId = null;
+          this.brainReady = false;
+
+          let ws;
+          try {
+            ws = new WebSocket(this.relay.wsUrl);
+          } catch (e) {
+            this.relay.status = 'error';
+            this.bannerText = 'Relay unavailable; running sandbox.';
+            const detail = (e && e.message) ? String(e.message) : String(e);
+            this.appendConsole('[RELAY] ws construct failed; fallback to sandbox' + (detail ? (': ' + detail) : ''));
+            this.bootSandboxBrain();
+            return;
+          }
+          this.relay.ws = ws;
+
+          const sessionTimeout = setTimeout(() => {
+            if (this.mode !== 'relay') return;
+            if (this.relay.sessionId) return;
+            this.appendConsole('[RELAY] session not ready; fallback to sandbox');
+            this.bannerText = 'Relay unavailable; running sandbox.';
+            try { ws.close(); } catch { }
+            this.bootSandboxBrain();
+          }, 1200);
+
+          ws.onopen = () => {
+            this.relay.status = 'connected';
+            this.appendConsole('[RELAY] connected');
+            this.relaySend({ cmd: 'CreateSession', owner: 'nexus-dual' });
+          };
+
+          ws.onmessage = (evt) => {
+            let msg = null;
+            try { msg = JSON.parse(evt.data); } catch { return; }
+            if (!msg || typeof msg !== 'object') return;
+
+            if (msg.type === 'SessionCreated' && typeof msg.session_id === 'string') {
+              this.relay.sessionId = msg.session_id;
+              this.brainReady = true;
+              this.appendConsole('[RELAY] session ' + msg.session_id);
+              try { clearTimeout(sessionTimeout); } catch { }
+              return;
+            }
+
+            if (msg.type === 'State.Snapshot' && msg.state && typeof msg.state === 'object') {
+              this.relay.lastSnapshot = msg.state;
+              this.brain.state = msg.state;
+              const pending = this.relay.pending.shift();
+              if (pending && pending.resolve) pending.resolve(msg.state);
+            }
+          };
+
+          ws.onerror = () => {
+            this.relay.status = 'error';
+            this.appendConsole('[RELAY] error');
+          };
+
+          ws.onclose = () => {
+            this.relay.status = 'disconnected';
+            this.relay.sessionId = null;
+            this.brainReady = false;
+            this.appendConsole('[RELAY] disconnected');
+          };
+        },
+
+        // Extracted message handlers to reduce cognitive complexity
+        handleBrainMessage(m) {
+          // Delegate to smaller helpers to reduce cognitive complexity
+          if (m.kind === 'READY') return this.onBrainReady(m);
+          if (m.kind === 'BRAIN_TICK') return this.onBrainTick(m);
+          if (m.kind === 'BRAIN_SUB') return this.onBrainSub(m);
+          if (m.kind === 'BENCH_RESULT') return this.onBenchResult(m);
+          if (m.kind === 'BRAIN_RESTORED') return this.onBrainRestored(m);
+          // other kinds are ignored here
+        },
+
+        onBrainReady(m) {
+          this.brainReady = true; this.appendConsole('[BRAIN] ready');
+        },
+
+        onBrainTick(m) {
+          this.brain.state = m.payload && m.payload.snapshot ? m.payload.snapshot : this.brain.state;
+          this.appendConsole('[BRAIN] tick');
+          if (this.autoRefresh && m.payload && m.payload.delta) this.applyDeltaToEntities(m.payload.delta);
+          if (m.payload && m.payload.collisions) this.appendConsole('[BRAIN] collisions: ' + (m.payload.collisions.length || 0));
+
+          this.processTelemetryPayload(m.payload);
+          this.forwardCollisionsFromPayload(m.payload);
+        },
+
+        processTelemetryPayload(payload) {
+          try {
+            const sample = this.computeTelemetrySample(payload);
+            if (sample) {
+              this.telemetryBuffer.push(sample);
+              if (this.telemetryBuffer.length > this.telemetryInterval) this.telemetryBuffer.shift();
+            }
+            // auto-run telemetry summary
+            try {
+              const tick = payload && payload.tick ? payload.tick : 0;
+              if (this.telemetryAuto && (tick - (this.lastTelemetryTick || 0) >= this.telemetryInterval)) {
+                this.lastTelemetryTick = tick; this.runTelemetrySummary();
+              }
+            } catch (err) { console.warn('telemetry auto-run failed', err); }
+          } catch (e) { console.warn('process telemetry failed', e); }
+        },
+
+        forwardCollisionsFromPayload(payload) {
+          try {
+            if (payload && Array.isArray(payload.collisions) && payload.collisions.length) {
+              try { this.codepadFrame.contentWindow.postMessage({ __nexus: true, to: 'codepad', kind: 'EVENT_COLLISION', payload: { collisions: payload.collisions, tick: payload.tick } }, '*'); }
+              catch (err) { console.warn('forward collision to codepad failed', err); }
+            }
+          } catch (e) { console.warn('forward collisions failed', e); }
+        },
+
+        onBrainSub(m) {
+          try { window.postMessage(m, '*'); } catch (err) { console.warn('post BRAIN_SUB failed', err); }
+          this.appendConsole('[BRAIN SUB] sub=' + (m.payload && m.payload.subId));
+        },
+
+        onBenchResult(m) {
+          try { window.postMessage(m, '*'); } catch (err) { console.warn('post BENCH_RESULT failed', err); }
+          this.appendConsole('[BENCH] result received');
+          if (m.payload && m.payload.result) this.benchmarkResult = m.payload.result;
+        },
+
+        onBrainRestored(m) {
+          this.appendConsole('[BRAIN] restored snapshot #' + (m.payload && m.payload.idx));
+          this.brainRequestState().then(() => this.refreshSnapshots()).catch(err => console.warn('refreshSnapshots failed', err));
+        },
+
+        handleCodepadMessage(m) {
+          if (m.kind === 'READY') { this.codepadReady = true; this.appendConsole('[CODEPAD] ready'); return; }
+          if (m.kind === 'CONSOLE') { this.appendConsole(m.payload && m.payload.text || ''); return; }
+
+          if (m.kind === 'EXECUTE_REQUEST_BRAIN') {
+            const reqId = m.reqId;
+            const { op, args } = m.payload || {};
+            this.brainOp(op, args || []).then((payload) => {
+              try {
+                this.codepadFrame.contentWindow.postMessage(
+                  { __nexus: true, from: 'parent', to: 'codepad', kind: 'BRAIN_REPLY', payload, replyTo: reqId },
+                  '*'
+                );
+              } catch (err) { console.warn('forward reply to codepad failed', err); }
+            });
+          }
+
+          // other codepad message kinds handled elsewhere
+        },
+
+        // Create a message handler that forwards brain replies to a target iframe
+        createBrainReplyHandler(brReqId, replyToId, targetFrame) {
+          const handler = (ev) => {
+            const mm = ev.data;
+            if (!mm || !mm.__nexus) return;
+            if (mm.from === 'brain' && mm.replyTo === brReqId) {
+              window.removeEventListener('message', handler);
+              try {
+                targetFrame.contentWindow.postMessage({ __nexus: true, to: 'codepad', kind: 'BRAIN_REPLY', payload: mm.payload, replyTo: replyToId }, '*');
+              } catch (err) { console.warn('forward reply failed', err); }
+            }
+          };
+          return handler;
+        },
+
+        computeAvgSpeed(sampleIds, entities) {
+          let sumSpeed = 0;
+          let speedCount = 0;
+          for (const id of sampleIds) {
+            const e = entities[id];
+            if (!e) continue;
+            const vx = Number(e.vx || 0);
+            const vy = Number(e.vy || 0);
+            const sp = Math.hypot(vx, vy);
+            sumSpeed += sp;
+            speedCount++;
+          }
+          return { avgSpeed: speedCount ? (sumSpeed / speedCount) : 0, count: speedCount };
+        },
+
+        // validators to reduce cognitive complexity in evaluateSafety
+        validateCellSize(v, level) {
+          const val = Number(v || 0);
+          if (!Number.isFinite(val) || val <= 0 || val > 10000) return { ok: false, reason: 'cellSize out of bounds' };
+          if (level === 'high' && val > 1024) return { ok: false, reason: 'cellSize too large for high safety' };
+          return { ok: true };
+        },
+
+        validateDt(v, level) {
+          const val = Number(v || 0);
+          if (!Number.isFinite(val) || val <= 0 || val > 1) return { ok: false, reason: 'dt out of bounds' };
+          if (level === 'high' && val < 0.0005) return { ok: false, reason: 'dt too small for high safety' };
+          return { ok: true };
+        },
+
+        computeCluster(sampleIds, entities) {
+          let cluster = { maxCount: 0, cellX: 0, cellY: 0 };
+          if (!sampleIds || !sampleIds.length) return cluster;
+          let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+          for (const id of sampleIds) {
+            const e = entities[id];
+            if (!e) continue;
+            minx = Math.min(minx, e.x || 0);
+            miny = Math.min(miny, e.y || 0);
+            maxx = Math.max(maxx, e.x || 0);
+            maxy = Math.max(maxy, e.y || 0);
+          }
+          const cols = 10;
+          const rows = 10;
+          const grid = new Array(cols * rows).fill(0);
+          const w = Math.max(1, (maxx - minx));
+          const h = Math.max(1, (maxy - miny));
+          for (const id of sampleIds) {
+            const e = entities[id];
+            if (!e) continue;
+            const cx = Math.min(cols - 1, Math.floor(((e.x || 0) - minx) / w * cols));
+            const cy = Math.min(rows - 1, Math.floor(((e.y || 0) - miny) / h * rows));
+            const idx = cx + cy * cols;
+            grid[idx] = (grid[idx] || 0) + 1;
+          }
+          for (let i = 0; i < grid.length; i++) {
+            if (grid[i] > cluster.maxCount) {
+              cluster.maxCount = grid[i];
+              cluster.cellX = i % cols;
+              cluster.cellY = Math.floor(i / cols);
+            }
+          }
+          return cluster;
+        },
+
+        computeTelemetrySample(payload) {
+          try {
+            const snap = payload && payload.snapshot ? payload.snapshot : null;
+            const entities = snap && snap.entities ? snap.entities : {};
+            const ids = Object.keys(entities);
+            const total = ids.length;
+            const sampleIds = ids.slice(0, 2000);
+
+            const sp = this.computeAvgSpeed(sampleIds, entities);
+            const avgSpeed = sp.avgSpeed; const collisions = Array.isArray(payload && payload.collisions) ? payload.collisions.length : 0;
+            const cluster = this.computeCluster(sampleIds, entities);
+            return { tick: payload && payload.tick || 0, total, avgSpeed, collisions, cluster };
+          } catch (e) { console.warn('compute telemetry sample failed', e); return null; }
+        },
+
+        appendConsole(t) { this.consoleText = (this.consoleText + '\n' + '[' + (new Date()).toLocaleTimeString() + '] ' + t).trim(); }
+        ,
+        async run() {
+          // send user code to codepad to evaluate via worker inside it; for demo we'll call API directly
+          try {
+            // evaluate in codepad context by sending a message that codepad could run (not implemented fully here)
+            // Instead, we show how to ask Brain for state
+            this.appendConsole('Run requested — requesting state from brain');
+            const reqId = 'rproxy-' + Math.random().toString(16).slice(2);
+            // make the codepad request the brain through parent (simulate user calling API)
+            this.codepadFrame.contentWindow.postMessage({ __nexus: true, from: 'parent', to: 'codepad', kind: 'EXECUTE_REQUEST_BRAIN', payload: { op: 'getState', args: [] }, reqId }, '*');
+          } catch (e) { this.appendConsole('run error: ' + String(e)); }
+        },
+        resetCodepad() { this.codepadFrame.srcdoc = codepadSrcdoc(); this.appendConsole('[CODEPAD] reset'); },
+
+        relayPayload(op, args, res) {
+          return { op, args, res: res || { ok: false, code: 'UNKNOWN', message: 'unknown' } };
+        },
+
+        relayLimited(op, args) {
+          const msg = 'Relay mode is limited to getState/applyOperator (blocked: ' + String(op) + ')';
+          this.appendConsole('[RELAY] ' + msg);
+          return Promise.resolve(this.relayPayload(op, args, { ok: false, code: 'RELAY_LIMITED', message: msg }));
+        },
+
+        brainOpRelay(op, args) {
+          const opName = String(op || '');
+          const a = Array.isArray(args) ? args : [];
+          if (opName === 'getState') {
+            const s = this.relay.lastSnapshot || this.brain.state || {};
+            return Promise.resolve(this.relayPayload(opName, a, { ok: true, value: s, code: 'OK' }));
+          }
+
+          if (opName === 'applyOperator') {
+            if (!this.relay.sessionId) {
+              return Promise.resolve(this.relayPayload(opName, a, { ok: false, code: 'NO_SESSION', message: 'relay session not ready' }));
+            }
+            const operator = a[0];
+            const params = (a[1] && typeof a[1] === 'object') ? a[1] : {};
+            if (typeof operator !== 'string' || !operator) {
+              return Promise.resolve(this.relayPayload(opName, a, { ok: false, code: 'BAD_OPERATOR', message: 'applyOperator expects operator string' }));
+            }
+
+            return new Promise((resolve) => {
+              const resolver = (state) => resolve(this.relayPayload(opName, a, { ok: true, value: state, code: 'OK' }));
+              this.relay.pending.push({ resolve: resolver });
+
+              const sent = this.relaySend({ cmd: 'ApplyOperator', session_id: this.relay.sessionId, operator, params });
+              if (!sent) {
+                this.relay.pending.pop();
+                resolve(this.relayPayload(opName, a, { ok: false, code: 'WS_NOT_READY', message: 'relay websocket not ready' }));
+                return;
+              }
+
+              setTimeout(() => {
+                // remove resolver if still pending
+                let idx = -1;
+                for (let i = 0; i < this.relay.pending.length; i++) {
+                  const x = this.relay.pending[i];
+                  if (x && x.resolve === resolver) { idx = i; break; }
+                }
+                if (idx >= 0) this.relay.pending.splice(idx, 1);
+                resolve(this.relayPayload(opName, a, { ok: false, code: 'TIMEOUT', message: 'relay applyOperator timeout' }));
+              }, 1800);
+            });
+          }
+
+          return this.relayLimited(opName, a);
+        },
+
+        brainOpSandbox(op, args) {
+          const rid = 'rbop-' + Math.random().toString(16).slice(2);
+          return new Promise((resolve) => {
+            const onResp = (ev) => {
+              const m = ev.data;
+              if (!m || !m.__nexus) return;
+              if (m.from === 'brain' && m.replyTo === rid) {
+                window.removeEventListener('message', onResp);
+                resolve(m.payload);
+              }
+            };
+            window.addEventListener('message', onResp);
+            try {
+              this.brainFrame.contentWindow.postMessage({ __nexus: true, to: 'brain', kind: 'OP', payload: { op, args }, reqId: rid }, '*');
+            } catch (err) { window.removeEventListener('message', onResp); console.warn('brainOp post failed', err); resolve(null); }
+            // timeout fallback
+            setTimeout(() => { window.removeEventListener('message', onResp); resolve(null); }, 1800);
+          });
+        },
+
+        // Generic OP helper to talk to brain and await reply
+        brainOp(op, args) {
+          return this.mode === 'relay' ? this.brainOpRelay(op, args) : this.brainOpSandbox(op, args);
+        },
+
+        async brainRequestState() { // ask brain directly via postMessage
+          const payload = await this.brainOp('getState', []);
+          const res = payload && payload.res;
+          if (res && res.ok) {
+            const v = res.value || {};
+            this.brain.state = (v && v.snapshot) ? v.snapshot : v;
+            this.appendConsole('[BRAIN] state pulled');
+          }
+          else { this.appendConsole('[BRAIN] state pull failed'); }
+        },
+
+        // Snapshots UI state
+        snapshots: [],
+        snapshotPreview: '',
+
+        // Entities UI state
+        entities: [],
+        spawnForm: { type: 'orc', x: 0, y: 0, health: 10, dynamic: true },
+        autoRefresh: true,
+
+        // Benchmarking
+        benchmarkResult: null,
+
+        async refreshSnapshots() {
+          const payload = await this.brainOp('listSnapshots', []);
+          const res = payload && payload.res;
+          if (res && res.ok && Array.isArray(res.value)) { this.snapshots = res.value; this.appendConsole('[BRAIN] snapshots loaded'); }
+          else { this.appendConsole('[BRAIN] snapshots load failed'); }
+        },
+
+        async purgeSnapshots() {
+          if (!confirm('Purge all snapshots from Brain? This cannot be undone.')) return;
+          const payload = await this.brainOp('purgeSnapshots', []);
+          const res = payload && payload.res;
+          if (res && res.ok) { this.appendConsole('[BRAIN] snapshots purged'); this.snapshots = []; this.snapshotPreview = ''; }
+          else { this.appendConsole('[BRAIN] purge failed'); }
+        },
+
+        async previewSnapshot(idx) {
+          const payload = await this.brainOp('getSnapshot', [idx]);
+          const res = payload && payload.res;
+          if (res && res.ok && res.value) {
+            this.snapshotPreview = JSON.stringify(res.value, null, 2);
+            this.appendConsole('[BRAIN] snapshot loaded for preview');
+          } else { this.appendConsole('[BRAIN] snapshot load failed'); }
+        },
+
+        // Entities
+        async refreshEntities() {
+          const payload = await this.brainOp('queryEntities', []);
+          const res = payload && payload.res;
+          if (res && res.ok && Array.isArray(res.value)) { this.entities = res.value; this.appendConsole('[BRAIN] entities loaded'); this.drawEntities(); }
+          else { this.appendConsole('[BRAIN] entities load failed'); }
+        },
+
+        async spawnEntity() {
+          const form = this.spawnForm || {};
+          const type = String(form.type || 'entity');
+          const props = { x: Number(form.x || 0), y: Number(form.y || 0), health: Number(form.health || 0), dynamic: !!form.dynamic };
+          const payload = await this.brainOp('spawnEntity', [type, props]);
+          const res = payload && payload.res;
+          if (res && res.ok) { this.appendConsole('[BRAIN] spawned id ' + (res.value && res.value.id)); await this.refreshEntities(); }
+          else { this.appendConsole('[BRAIN] spawn failed'); }
+        },
+
+        async benchmarkGetState(n, opts) {
+          const count = Number(n) || 10000; const options = opts || { runs: 5, area: 10000 };
+          this.appendConsole('[BENCH] starting ' + count + ' entities');
+          const payload = await this.brainOp('benchmarkGetState', [count, options]);
+          const res = payload && payload.res;
+          if (res && res.ok) {
+            this.appendConsole('[BENCH] done avg=' + (res.value && res.value.avg) + 'ms');
+            this.benchmarkResult = res.value;
+          } else {
+            this.appendConsole('[BENCH] failed');
+          }
+        },
+
+        // Render loop (parent -> codepad RENDER messages)
+        startRender() {
+          if (this.renderRunning) return;
+          this.renderRunning = true;
+          const loop = (t) => {
+            if (!this.renderRunning) return;
+            this.renderFrame();
+            this.renderId = requestAnimationFrame(loop);
+          };
+          this.renderId = requestAnimationFrame(loop);
+          this.appendConsole('[RENDER] started');
+        },
+
+        stopRender() {
+          if (!this.renderRunning) return;
+          this.renderRunning = false;
+          if (this.renderId) { cancelAnimationFrame(this.renderId); this.renderId = null; }
+          this.appendConsole('[RENDER] stopped');
+        },
+
+        renderFrame() {
+          try {
+            // using last known brain state snapshot
+            const snap = this.brain && this.brain.state ? this.brain.state : null;
+            if (!snap || !snap.entities) return;
+            const ents = Object.keys(snap.entities).slice(0, 1000).map(k => snap.entities[k]); // limit for performance
+            // compute predicted positions (simple forward-tick)
+            const dt = (1 / 60);
+            const payload = ents.map(e => ({ id: e.id, x: e.x, y: e.y, vx: e.vx, vy: e.vy, r: e.size, color: e.color || (e.type === 'player' ? '#34d399' : '#ff9a4d'), gx: (e.x + (e.vx || 0) * dt), gy: (e.y + (e.vy || 0) * dt) }));
+            const overlays = { ghost: !!this.overlayGhost, hitbox: !!this.overlayHitbox, collisions: !!this.overlayCollisions, heatmap: !!this.overlayHeatmap, clusters: !!this.overlayClusters, interpolate: !!this.overlayInterp, interpFactor: (typeof this.interpFactor === 'number' ? Math.max(0, Math.min(1, this.interpFactor)) : 0.3) };
+
+            // compute simple heatmap & clusters if enabled (sampled)
+            try {
+              if (overlays.heatmap || overlays.clusters) {
+                const t0 = performance.now();
+                const res = this.computeHeatmapAndClusters(payload, this.overlayHeatmapResolution || 40, this.overlayHeatmapResolution || 40);
+                const t1 = performance.now();
+                overlays.heatmapGrid = res.heatmapGrid;
+                overlays.clusterMarkers = res.clusterMarkers;
+                overlays._computeMs = Math.round(t1 - t0);
+              }
+            } catch (e) { console.warn('heatmap compute failed', e); }
+
+            const msg = { __nexus: true, from: 'parent', kind: 'RENDER', payload: { entities: payload, overlays } };
+            try { this.codepadFrame.contentWindow.postMessage(msg, '*'); } catch (e) { console.warn('postMessage to codepad failed', e); }
+            // re-broadcast locally for in-page viewers
+            try { window.postMessage(msg, '*'); } catch (e) { console.warn('postMessage to window failed', e); }
+
+          } catch (e) { console.warn('render draw error', e); }
+        },
+
+        async spawnGravityWell() {
+          const x = Math.floor(Math.random() * 500 - 250);
+          const y = Math.floor(Math.random() * 500 - 250);
+          const mass = 200 + Math.floor(Math.random() * 800);
+          const payload = await this.brainOp('spawnEntity', ['gravity_well', { x, y, mass, size: 24 }]);
+          const res = payload && payload.res;
+          if (res && res.ok) { this.appendConsole('[BRAIN] gravity well spawned ' + (res.value && res.value.id)); await this.refreshEntities(); }
+          else { this.appendConsole('[BRAIN] spawn gravity well failed'); }
+        },
+
+        async simulateSensor() {
+          // simple sensor emit: updates a var in Brain that can be used by operators
+          const val = Math.round(Math.random() * 100);
+          const payload = await this.brainOp('setVar', ['sensor_value', val]);
+          const res = payload && payload.res;
+          if (res && res.ok) { this.appendConsole('[SENSOR] emitted ' + val); }
+          else { this.appendConsole('[SENSOR] emit failed'); }
+        },
+        async testGravity() {
+          const payload = await this.brainOp('testGravity', [1, 100, 10]);
+          const res = payload && payload.res;
+          if (res && res.ok && res.value) { this.appendConsole('[TEST] gravity=' + JSON.stringify(res.value)); }
+          else { this.appendConsole('[TEST] gravity test failed'); }
+        },
+
+        // Telemetry: compute aggregated insights from recent ticks
+        computeTelemetrySummary() {
+          try {
+            if (!this.telemetryBuffer || !this.telemetryBuffer.length) return null;
+            const buf = this.telemetryBuffer.slice();
+            const last = buf[buf.length - 1];
+            const totalEntities = last.total || 0;
+            const avgCollisions = Math.round((buf.reduce((a, b) => a + (b.collisions || 0), 0) / buf.length) * 100) / 100;
+            const avgSpeed = Math.round((buf.reduce((a, b) => a + (b.avgSpeed || 0), 0) / buf.length) * 100) / 100;
+            // peak cluster across buffer
+            let peak = { maxCount: 0, cellX: 0, cellY: 0 };
+            for (const s of buf) { if (s.cluster && s.cluster.maxCount > peak.maxCount) { peak = s.cluster; } }
+            const hotspot = peak.maxCount > 0 ? `cell(${peak.cellX}, ${peak.cellY}) = ${peak.maxCount} ` : 'none';
+            // stuck entities (approx): count samples with avgSpeed < 0.02
+            const stuckCount = buf.filter(s => (s.avgSpeed || 0) < 0.02).length;
+            const summary = { tick: last.tick, totalEntities, avgCollisions, avgSpeed, hotspot, peakCount: peak.maxCount, stuckCount, samples: buf.length };
+            return summary;
+          } catch (e) { console.warn('compute telemetry failed', e); return null; }
+        },
+
+        runTelemetrySummary() {
+          try {
+            const summary = this.computeTelemetrySummary();
+            if (!summary) { this.appendConsole('[TELEM] no data'); return null; }
+            this.telemetrySummary = summary;
+            const short = `Tick ${summary.tick}: entities = ${summary.totalEntities}, avgSpeed = ${summary.avgSpeed} avgColl = ${summary.avgCollisions} hotspot = ${summary.hotspot} `;
+            this.appendConsole('[TELEM] ' + short);
+            // post to window so other components (Codepad/Chatbot) can consume
+            try { window.postMessage({ __nexus: true, from: 'parent', kind: 'TELEMETRY', payload: summary }, '*'); } catch (e) { console.warn('telemetry post failed', e); }
+
+            // post-analysis: run a tiny analysis and post suggestion
+            try {
+              const suggestion = (() => {
+                if (summary.peakCount > Math.max(50, summary.totalEntities * 0.02)) return 'High-density cluster detected — consider increasing LOD/culling or adjusting spatial index cellSize.';
+                if (summary.avgCollisions > 1) return 'Collision rate elevated — consider reducing physics dt or add collision damping.';
+                if (summary.stuckCount > (summary.samples / 2)) return 'Many entities with near-zero average speed — check for stuck or inactive entities.';
+                return 'No immediate issues detected.';
+              })();
+              this.appendConsole('[TELEM.SUGGEST] ' + suggestion);
+              const tele = { ...summary, suggestion, short };
+              this.telemetrySummary = tele;
+              try { window.postMessage({ __nexus: true, from: 'parent', kind: 'TELEM_SUGGEST', payload: { summary: tele, suggestion } }, '*'); } catch (e) { console.warn('telemetry suggest post failed', e); }
+              // If user enabled consultant auto-run, trigger mock consultant flow
+              try { if (this.consultantAuto) { this.consultSimulation(); } } catch (e) { console.warn('auto consultant failed', e); }
+            } catch (e) { console.warn('analysis failed', e); }
+          } catch (e) { console.warn('telemetry run failed', e); }
+        },
+
+        // Compute heatmap and clusters from entity list
+        computeHeatmapAndClusters(ents, cols = 40, rows = 40) {
+          const grid = new Array(cols * rows).fill(0);
+          let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+          for (const e of ents) { minx = Math.min(minx, e.x || 0); miny = Math.min(miny, e.y || 0); maxx = Math.max(maxx, e.x || 0); maxy = Math.max(maxy, e.y || 0); }
+          if (!Number.isFinite(minx)) { minx = 0; miny = 0; maxx = 1; maxy = 1; }
+          const w = Math.max(1e-6, (maxx - minx)); const h = Math.max(1e-6, (maxy - miny));
+          for (const e of ents) { const cx = Math.min(cols - 1, Math.floor(((e.x || 0) - minx) / w * cols)); const cy = Math.min(rows - 1, Math.floor(((e.y || 0) - miny) / h * rows)); const idx = cx + cy * cols; grid[idx] = (grid[idx] || 0) + 1; }
+          // clusters
+          let maxCount = 0; for (const v of grid) { if (v > maxCount) maxCount = v; }
+          const clusters = [];
+          for (let i = 0; i < grid.length; i++) { if (grid[i] > 0 && grid[i] >= Math.max(2, maxCount * 0.15)) { const cx = i % cols; const cy = Math.floor(i / cols); const cellW = w / cols; const cellH = h / rows; const centerX = minx + (cx + 0.5) * cellW; const centerY = miny + (cy + 0.5) * cellH; clusters.push({ cellX: cx, cellY: cy, count: grid[i], x: centerX, y: centerY }); } }
+          return { heatmapGrid: { cols, rows, minx, miny, maxx, maxy, cells: grid }, clusterMarkers: clusters };
+        },
+
+        // benchmark overlay performance: spawn synthetic entities and measure compute + draw via Codepad
+        async benchmarkOverlayPerf(count = 10000, runs = 5) {
+          try {
+            this.appendConsole('[BENCH-OVERLAY] generating ' + count + ' synthetic entities');
+            // generate synthetic entities in world coords (-500..500)
+            const area = 1000; const ents = [];
+            for (let i = 0; i < count; i++) { ents.push({ id: 's' + i, x: (Math.random() - 0.5) * area, y: (Math.random() - 0.5) * area, vx: 0, vy: 0, size: 4 }); }
+
+            const computeTimes = []; const drawTimes = [];
+            for (let r = 0; r < runs; r++) {
+              const t0 = performance.now(); const res = this.computeHeatmapAndClusters(ents, this.overlayHeatmapResolution || 40, this.overlayHeatmapResolution || 40); const t1 = performance.now(); computeTimes.push(t1 - t0);
+              // ask codepad to simulate draw time for the given overlays
+              const reqId = 'borg-' + Math.random().toString(16).slice(2);
+              const drawMs = await new Promise((resolve) => {
+                const onReply = (ev) => {
+                  const mm = ev.data;
+                  if (!mm || !mm.__nexus) return;
+                  if (mm.from === 'codepad' && mm.kind === 'BENCH_OVERLAY_RESULT' && mm.payload && mm.payload.reqId === reqId) {
+                    window.removeEventListener('message', onReply);
+                    resolve(mm.payload.drawMs);
+                  }
+                };
+                window.addEventListener('message', onReply);
+                try { this.codepadFrame.contentWindow.postMessage({ __nexus: true, from: 'parent', to: 'codepad', kind: 'BENCH_OVERLAY', payload: { heatmapGrid: res.heatmapGrid, clusterMarkers: res.clusterMarkers, world: { minx: res.heatmapGrid.minx, miny: res.heatmapGrid.miny, maxx: res.heatmapGrid.maxx, maxy: res.heatmapGrid.maxy }, reqId } }, '*'); }
+                catch (e) { window.removeEventListener('message', onReply); console.warn('bench overlay reply failed', e); resolve(null); }
+                // timeout fallback
+                setTimeout(() => { window.removeEventListener('message', onReply); resolve(null); }, 2000);
+              });
+              drawTimes.push(drawMs);
+            }
+            const avgCompute = Math.round((computeTimes.reduce((a, b) => a + b, 0) / computeTimes.length) * 100) / 100;
+            const avgDraw = Math.round((drawTimes.filter(x => x != null).reduce((a, b) => a + b, 0) / Math.max(1, drawTimes.filter(x => x != null).length)) * 100) / 100;
+            const report = { count, runs, avgComputeMs: avgCompute, avgDrawMs: Number.isNaN(avgDraw) ? null : avgDraw };
+            this.overlayBenchmarkResult = report; this.appendConsole('[BENCH-OVERLAY] ' + JSON.stringify(report));
+            // auto-tune: if compute > 16ms suggest lower resolution
+            if (report.avgComputeMs > 16 && report.count >= 5000) {
+              const curr = this.overlayHeatmapResolution || 40;
+              const suggested = Math.max(8, Math.min(128, Math.round(curr * (16 / (report.avgComputeMs || 1)))));
+              this.overlaySuggestedResolution = suggested;
+              this.appendConsole('[BENCH-OVERLAY] high compute time (' + report.avgComputeMs + 'ms), suggested resolution: ' + suggested);
+            }
+            return report;
+          } catch (e) { console.warn('benchmarkOverlayPerf failed', e); return null; }
+        },
+
+        exportOverlayBenchmark() {
+          try {
+            if (!this.overlayBenchmarkResult) { this.appendConsole('[BENCH-OVERLAY] no result to export'); return; }
+            const data = JSON.stringify(this.overlayBenchmarkResult, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'overlay-benchmark-' + Date.now() + '.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+            this.appendConsole('[BENCH-OVERLAY] exported result');
+          } catch (e) { console.warn('exportOverlayBenchmark failed', e); }
+        },
+
+        applyOverlaySuggestedResolution() {
+          try {
+            if (!this.overlaySuggestedResolution) { this.appendConsole('[BENCH-OVERLAY] no suggested resolution'); return; }
+            this.overlayHeatmapResolution = this.overlaySuggestedResolution;
+            this.appendConsole('[BENCH-OVERLAY] applied suggested resolution: ' + this.overlayHeatmapResolution);
+            this.overlaySuggestedResolution = null;
+          } catch (e) { console.warn('applyOverlaySuggestedResolution failed', e); }
+        },
+
+
+
+        // Consultant (remote-capable)
+        async consultSimulation(force = false) {
+          try {
+            const summary = await this.ensureTelemetrySummary(force);
+            if (!summary) { this.appendConsole('[CONSULT] no telemetry available'); return null; }
+
+            if (this.isConsultRateLimited(force)) return null;
+
+            this.consultantLoading = true; this.consultantResponse = 'Consultant thinking...'; this.consultantRecommendation = null;
+            const rec = await this.fetchConsultation(summary);
+            this.consultantLoading = false;
+
+            await this.handleConsultResult(rec);
+
+            return rec;
+          } catch (e) {
+            this.consultantLoading = false; this.consultantResponse = 'Consultant error'; console.warn('consult error', e);
+            this.auditAppend({ type: 'consult_error', error: String(e), t: Date.now() });
+            return null;
+          }
+        },
+
+        async ensureTelemetrySummary(force) {
+          if (!force && (!this.telemetrySummary || !this.telemetrySummary.tick)) {
+            this.appendConsole('[CONSULT] no telemetry — running telemetry first');
+            await this.runTelemetrySummary();
+          }
+          return this.telemetrySummary;
+        },
+
+        isConsultRateLimited(force) {
+          const now = Date.now();
+          if (!force && (now - (this.lastConsultantAt || 0) < (this.consultantMinIntervalMs || 5000))) {
+            this.consultantResponse = 'Consultant rate-limited — please wait before asking again.';
+            this.consultantLoading = false;
+            return true;
+          }
+          this.lastConsultantAt = now;
+          return false;
+        },
+
+        async fetchConsultation(summary) {
+          try {
+            let rec = null;
+            if (this.consultantEndpoint && String(this.consultantEndpoint).trim()) {
+              try {
+                rec = await this.callConsultantApi(summary);
+                this.appendConsole('[CONSULT] remote response');
+              } catch (err) {
+                console.warn('remote consult failed', err);
+                this.appendConsole('[CONSULT] remote consult failed — falling back to local');
+                rec = await this.mockConsultant(summary);
+              }
+            } else {
+              rec = await this.mockConsultant(summary);
+            }
+            return rec;
+          } catch (e) { console.warn('fetchConsultation failed', e); return null; }
+        },
+
+        async handleConsultResult(rec) {
+          try {
+            if (!rec) { this.consultantResponse = 'No recommendation.'; this.appendConsole('[CONSULT] no recommendation'); return; }
+            const v = this.validateConsultantRecommendation(rec);
+            if (!v.ok) {
+              this.consultantRecommendation = null;
+              this.consultantResponse = 'Recommendation rejected: ' + v.reason;
+              this.appendConsole('[CONSULT] recommendation rejected: ' + v.reason);
+              this.auditAppend({ type: 'recommendation_rejected', reason: v.reason, rec, t: Date.now() });
+              try { window.postMessage({ __nexus: true, from: 'parent', kind: 'CONSULT_RESULT', payload: { ok: false, reason: v.reason } }, '*'); } catch (e) { console.warn('consultant post failed', e); }
+              return;
+            }
+
+            this.consultantRecommendation = rec;
+            this.consultantResponse = rec.explanation || (rec.action || 'No action') + ' (confidence ' + Math.round((rec.confidence || 0) * 100) + '%)';
+            this.appendConsole('[CONSULT] ' + (rec.action || 'none') + ' confidence=' + (rec.confidence || 0));
+            this.auditAppend({ type: 'recommendation_received', rec, t: Date.now() });
+            try { window.postMessage({ __nexus: true, from: 'parent', kind: 'CONSULT_RESULT', payload: rec }, '*'); } catch (e) { console.warn('consultant post failed', e); }
+          } catch (e) { console.warn('handle consult result failed', e); }
+        },
+
+        // validate that the consultant's recommendation is allowable and safe
+        validateConsultantRecommendation(rec) {
+          try {
+            if (!rec || typeof rec.action !== 'string') return { ok: false, reason: 'no action' };
+            if (!Array.isArray(this.consultantAllowedActions) || !this.consultantAllowedActions.includes(rec.action)) return { ok: false, reason: 'action not allowed' };
+            const c = Number(rec.confidence || 0);
+            if (!Number.isFinite(c) || c < 0 || c > 1) return { ok: false, reason: 'invalid confidence' };
+            // check bounds via evaluateSafety
+            const safe = this.evaluateSafety(rec, this.consultantSafety);
+            if (!safe.ok) return { ok: false, reason: 'safety check failed: ' + safe.reason };
+            return { ok: true };
+          } catch (e) { console.warn('validate consult failed', e); return { ok: false, reason: 'validation error' }; }
+        },
+
+        // audit helpers (persisted)
+        auditAppend(entry) {
+          try {
+            const e = entry ? { t: Date.now(), ...entry } : { t: Date.now() };
+            this.auditLog = (this.auditLog || []).concat([e]).slice(-500);
+            try { localStorage.setItem(this.auditKey, JSON.stringify(this.auditLog)); } catch (err) { console.warn('persist audit failed', err); }
+            this.appendConsole('[AUDIT] ' + (e.type || 'log') + ' ' + JSON.stringify(e));
+          } catch (err) { console.warn('audit append failed', err); }
+        },
+
+        exportAuditLog() {
+          try {
+            const data = JSON.stringify(this.auditLog || [], null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'nexus-audit-' + Date.now() + '.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+            this.appendConsole('[AUDIT] exported log');
+          } catch (e) { console.warn('export audit failed', e); }
+        },
+
+
+        // Simple rule-based mock consultant that simulates an LLM response
+        async mockConsultant(summary) {
+          return new Promise((resolve) => {
+            setTimeout(() => {
+              const out = { action: 'none', args: [], confidence: 0.65, explanation: 'No immediate action required.' };
+              try {
+                if (summary.peakCount > Math.max(50, summary.totalEntities * 0.02)) {
+                  out.action = 'increase_cellSize'; out.args = [Math.ceil((summary.peakCount || 32) * 1.5)]; out.confidence = 0.85; out.explanation = `Detected hotspot ${summary.hotspot} with ${summary.peakCount} entities.Recommend increasing spatial cellSize to reduce cluster density.`;
+                } else if (summary.avgCollisions > 1) {
+                  const curDt = 1 / (this.fps || 30); out.action = 'reduce_dt'; out.args = [Math.max(0.001, curDt * 0.5)]; out.confidence = 0.9; out.explanation = `Collision rate ${summary.avgCollisions} is high — recommend reducing physics dt to ${out.args[0].toFixed(4)}.`;
+                } else if (summary.stuckCount > (summary.samples / 2)) {
+                  out.action = 'purge_snapshots'; out.args = []; out.confidence = 0.8; out.explanation = `Many stuck entities detected(${summary.stuckCount} samples).Recommend purging snapshots and investigating stuck behaviors.`;
+                }
+              } catch (e) { console.warn('mock consult failure', e); }
+              resolve(out);
+            }, 450); // simulate latency
+          });
+        },
+
+
+
+        async testConsultantEndpoint() {
+          try {
+            if (!this.consultantEndpoint) { this.consultantResponse = 'No endpoint configured'; return; }
+            this.consultantLoading = true; this.consultantResponse = 'Testing endpoint...';
+            // send a minimal prompt and summary to verify
+            const res = await this.callConsultantApi({ test: true, now: Date.now(), prompt: this.buildConsultantPrompt({ test: true }) });
+            this.consultantLoading = false; this.consultantResponse = 'Endpoint OK: ' + (res && res.explanation ? res.explanation : JSON.stringify(res));
+            this.appendConsole('[CONSULT] endpoint test OK');
+          } catch (e) { this.consultantLoading = false; this.consultantResponse = 'Endpoint test failed: ' + String(e); this.appendConsole('[CONSULT] endpoint test failed ' + String(e)); }
+        },
+
+        // Confirm and execute the pending action (after preview)
+        async confirmApply() {
+          try {
+            const action = this.pendingAction;
+            if (!action) { this.appendConsole('[CONSULT] nothing to confirm'); return; }
+            // Safety check again
+            const safe = this.evaluateSafety(action, this.consultantSafety);
+            if (!safe.ok) { this.appendConsole('[CONSULT][SAFE] rejected: ' + safe.reason); this.consultantResponse = 'Action rejected by safety check: ' + safe.reason; return; }
+            if (action.action === 'purge_snapshots') {
+              if (!confirm('Confirm purge of snapshots recommended by consultant? This cannot be undone.')) { this.appendConsole('[CONSULT] purge cancelled'); return; }
+            }
+            await this.executeAction(action);
+            this.appendConsole('[CONSULT] action executed: ' + action.action);
+            this.consultantResponse = 'Executed: ' + action.action;
+            this.pendingAction = null;
+            this.consultantRecommendation = null;
+          } catch (e) { console.warn('confirm apply failed', e); }
+        },
+
+        // Apply the current `consultantRecommendation` (safety-checked, supports dry-run)
+        async applyRecommendation() {
+          try {
+            const r = this.consultantRecommendation;
+            if (!r) { this.appendConsole('[CONSULT] no recommendation to apply'); return; }
+            const action = { action: r.action, args: Array.isArray(r.args) ? r.args.slice() : [], confidence: r.confidence || 0, explanation: r.explanation || '' };
+            const safe = this.evaluateSafety(action, this.consultantSafety);
+            if (!safe.ok) { this.appendConsole('[CONSULT][SAFE] rejected: ' + safe.reason); this.consultantResponse = 'Action rejected by safety check: ' + safe.reason; return; }
+            this.pendingAction = action;
+            // enforce confidence threshold before automatic apply
+            if (Number(action.confidence || 0) < (this.consultantApplyConfidence || 0.6)) {
+              this.appendConsole('[CONSULT] recommendation confidence too low — require confirmation');
+              this.consultantResponse = 'Low confidence recommendation — confirm to apply.';
+              return;
+            }
+
+            if (this.consultantDryRun) {
+              this.appendConsole('[CONSULT] dry-run preview prepared: ' + action.action + ' ' + JSON.stringify(action.args));
+              this.consultantResponse = 'Dry-run preview ready. Confirm to apply.';
+              return;
+            }
+
+            if (action.action === 'purge_snapshots') {
+              if (!confirm('Confirm purge of snapshots recommended by consultant? This cannot be undone.')) { this.appendConsole('[CONSULT] purge cancelled'); this.auditAppend({ type: 'action_cancelled', action, t: Date.now() }); return; }
+            }
+            this.auditAppend({ type: 'action_apply_attempt', action, t: Date.now() });
+            const ok = await this.executeAction(action);
+            this.auditAppend({ type: 'action_apply_result', action, result: ok, t: Date.now() });
+            if (ok) {
+              this.appendConsole('[CONSULT] applied ' + action.action);
+              this.pendingAction = null; this.consultantRecommendation = null; this.consultantResponse = 'Applied: ' + action.action;
+            } else {
+              this.appendConsole('[CONSULT] apply failed'); this.consultantResponse = 'Apply failed';
+            }
+          } catch (e) { console.warn('apply recommendation failed', e); }
+        },
+
+        // Execute the action against the Brain using existing brainOp contracts
+        async executeAction(action) {
+          try {
+            if (!action || !action.action) return null;
+            if (action.action === 'increase_cellSize') {
+              const val = action.args && action.args[0] ? Number(action.args[0]) : 64;
+              await this.brainOp('setVar', ['spatial_cellSize', val]);
+              this.appendConsole('[CONSULT] set spatial_cellSize=' + val);
+              return true;
+            }
+            if (action.action === 'reduce_dt') {
+              const val = action.args && action.args[0] ? Number(action.args[0]) : (1 / (this.fps || 30));
+              await this.brainOp('setVar', ['physics_dt', val]);
+              this.appendConsole('[CONSULT] set physics_dt=' + val);
+              return true;
+            }
+            if (action.action === 'purge_snapshots') {
+              await this.purgeSnapshots();
+              return true;
+            }
+            this.appendConsole('[CONSULT] no-op for action ' + action.action);
+            return false;
+          } catch (e) { console.warn('executeAction failed', e); return false; }
+        },
+
+
+        // Evaluate safety of an action given a safety level
+        evaluateSafety(action, level) {
+          if (!action || !action.action) return { ok: false, reason: 'no action' };
+          try {
+            const validators = {
+              'increase_cellSize': (args) => this.validateCellSize(args && args[0], level),
+              'reduce_dt': (args) => this.validateDt(args && args[0], level),
+              'purge_snapshots': () => (level === 'high' ? { ok: false, reason: 'purge disallowed at high safety' } : { ok: true })
+            };
+            const fn = validators[action.action];
+            if (fn) return fn(action.args);
+            return { ok: true, reason: '' };
+          } catch (e) { console.warn('safety eval failed', e); return { ok: false, reason: 'safety eval error' }; }
+        },
+
+        // Build a structured prompt to send to LLMs (compact JSON + instructions)
+        buildConsultantPrompt(summary) {
+          try {
+            const s = summary || this.telemetrySummary || {};
+            const prompt = {
+              role: 'system',
+              instruction: 'You are an expert simulation consultant. Given the telemetry summary, recommend a single actionable change (action, args, confidence, explanation) to improve stability or performance. If no action is needed, return action: "none".',
+              telemetry: s,
+              note: 'Prefer safe conservative changes. Include numeric args if needed. Limit confidence to 0..1.'
+            };
+            return JSON.stringify(prompt);
+          } catch (e) { console.warn('build prompt failed', e); return JSON.stringify({ error: 'prompt build failed' }); }
+        },
+
+        // Parse LLM responses that may be structured or plain-text
+        parseLlmResponse(raw) {
+          try {
+            if (!raw) return null;
+            if (raw && raw.action && typeof raw.action === 'string') return raw;
+            if (typeof raw === 'string') {
+              // try parse JSON from text
+              try {
+                const j = JSON.parse(raw);
+                if (j && j.action && typeof j.action === 'string') return j;
+              } catch (e) { console.warn('parse llm JSON failed', e); }
+            }
+            return null;
+          } catch (e) { console.warn('parse llm failed', e); return null; }
+        },
+
+        // Update callConsultantApi to pass a structured prompt
+        async callConsultantApi(summary) {
+          if (!this.consultantEndpoint) throw new Error('no endpoint configured');
+          const url = String(this.consultantEndpoint).trim();
+          const controller = new AbortController(); const timeout = setTimeout(() => { controller.abort(); }, this.consultantTimeoutMs || 3000);
+          try {
+            const prompt = this.buildConsultantPrompt(summary);
+            const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary, prompt }), signal: controller.signal });
+            clearTimeout(timeout);
+            if (!res.ok) throw new Error('non-200 response: ' + res.status);
+            const json = await res.json();
+            const parsed = this.parseLlmResponse(json);
+            if (parsed) return parsed;
+            // try parse raw text body
+            const text = await res.text();
+            try { const p = this.parseLlmResponse(text); if (p) return p; } catch (e) { console.warn('parse LLM text fallback failed', e); }
+            throw new Error('invalid response');
+          } catch (e) { clearTimeout(timeout); throw e; }
+        },
+
+        async removeEntity(id) {
+          if (!confirm('Delete entity #' + id + '?')) return;
+          const payload = await this.brainOp('removeEntity', [id]);
+          const res = payload && payload.res;
+          if (res && res.ok) { this.appendConsole('[BRAIN] removed ' + id); await this.refreshEntities(); this.drawEntities(); }
+          else { this.appendConsole('[BRAIN] remove failed'); }
+        },
+
+        async queryEntity(id) {
+          // for demo: simple local query
+          this.appendConsole('Query entity ' + id);
+          const e = (this.entities || []).find(x => x.id == id);
+          if (e) this.appendConsole(JSON.stringify(e));
+          else this.appendConsole('not found');
+        },
+
+        applyDeltaToEntities(delta) {
+          // delta: { updated: {id:entity}, removed:[id] }
+          try {
+            const map = new Map((this.entities || []).map(e => [String(e.id), e]));
+            if (delta && delta.updated) {
+              for (const id of Object.keys(delta.updated)) {
+                const v = delta.updated[id]; map.set(String(v.id), v);
+              }
+            }
+            if (delta && Array.isArray(delta.removed)) {
+              for (const id of delta.removed) map.delete(String(id));
+            }
+            this.entities = Array.from(map.values());
+            this.drawEntities();
+          } catch (e) { console.warn(e); }
+        },
+
+        drawEntities() {
+          try {
+            const canvas = document.getElementById('entityCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width = canvas.clientWidth; const h = canvas.height = canvas.clientHeight;
+            ctx.clearRect(0, 0, w, h);
+            if (!this.entities || !this.entities.length) return;
+            // compute bounds
+            let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+            for (const e of this.entities) { minx = Math.min(minx, e.x || 0); miny = Math.min(miny, e.y || 0); maxx = Math.max(maxx, e.x || 0); maxy = Math.max(maxy, e.y || 0); }
+            if (!Number.isFinite(minx)) { minx = 0; miny = 0; maxx = w; maxy = h; }
+            const pad = 20; const sx = (w - pad * 2) / Math.max(1, (maxx - minx)); const sy = (h - pad * 2) / Math.max(1, (maxy - miny));
+            for (const e of this.entities) { const cx = pad + ((e.x - minx) * sx); const cy = pad + ((e.y - miny) * sy); ctx.beginPath(); ctx.fillStyle = e.type === 'player' ? '#34d399' : '#ff9a4d'; ctx.arc(cx, cy, Math.max(2, (e.size || 8) / 2), 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#9aa7b5'; ctx.font = '10px monospace'; ctx.fillText(String(e.id), cx + 6, cy + 3); }
+          } catch (e) { console.warn(e); }
+        },
+
+
+
+        async restoreSnapshot(idx) {
+          if (!confirm('Restore snapshot #' + idx + '? This will overwrite current world state.')) return;
+          const payload = await this.brainOp('restoreSnapshot', [idx]);
+          const res = payload && payload.res;
+          if (res && res.ok) {
+            this.appendConsole('[BRAIN] snapshot restored');
+            await this.brainRequestState();
+            await this.refreshSnapshots();
+          } else {
+            this.appendConsole('[BRAIN] restore failed');
+          }
+        },
+
+        // Engine heartbeat control
+        startEngine() {
+          if (this.engineRunning) return;
+          this.engineRunning = true;
+          const schedule = () => {
+            const interval = Math.max(1, Math.floor(1000 / (this.fps || 30)));
+            if (this.engineId) { clearInterval(this.engineId); this.engineId = null; }
+            this.engineId = setInterval(async () => {
+              try {
+                const res = await this.brainOp('worldStep', [1 / (this.fps || 30)]);
+                const r = res && res.res;
+                if (r && r.ok) {
+                  const collisions = (r.value && r.value.collisions) ? r.value.collisions.length : 0;
+                  this.appendConsole('[ENGINE] step ok tick=' + (r.value && r.value.tick) + ' collisions=' + collisions);
+                } else {
+                  this.appendConsole('[ENGINE] step error');
+                }
+              } catch (e) { this.appendConsole('[ENGINE] step exception: ' + String(e)); }
+            }, interval);
+          };
+          schedule();
+          this.appendConsole('[ENGINE] started @ ' + (this.fps || 30) + ' FPS');
+        },
+
+        updateEngineFps() {
+          this.fps = Math.max(1, Math.min(240, Number(this.fps) || 30));
+          this.appendConsole('[ENGINE] fps set to ' + this.fps);
+          if (this.engineRunning) { this.stopEngine(); this.startEngine(); }
+        },
+
+        stopEngine() {
+          if (!this.engineRunning) return;
+          this.engineRunning = false;
+          if (this.engineId) { clearInterval(this.engineId); this.engineId = null; }
+          this.appendConsole('[ENGINE] stopped');
+        }
+      };
+    }
+  </script>
+</body>
+
+</html>

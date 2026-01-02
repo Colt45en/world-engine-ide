@@ -1,0 +1,45 @@
+{
+  "version": 8,
+  "configurePresets": [
+    {
+      "name": "dbg",
+      "displayName": "WASM Debug (short path)",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "rel",
+      "displayName": "WASM Release (short path)",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "emsdk-rel",
+      "displayName": "WASM (Emscripten via EMSDK) Release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": "$penv{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "dbg",
+      "configurePreset": "dbg"
+    },
+    {
+      "name": "rel",
+      "configurePreset": "rel"
+    },
+    {
+      "name": "emsdk-rel",
+      "configurePreset": "emsdk-rel"
+    }
+  ]
+}

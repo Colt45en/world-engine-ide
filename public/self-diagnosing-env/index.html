@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Self-Diagnosing Environment</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #0b0f17;
+      color: #e6edf3;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    }
+    #canvas { width: 100vw; height: 100vh; display: block; }
+    #hud {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 10px 12px;
+      backdrop-filter: blur(8px);
+      font-size: 12px;
+      white-space: pre-wrap;
+      max-width: 720px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="hud">Connecting…</div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "connector": {
+    "name": "local"
+  },
+  "hints": {
+    "axe/color-contrast": "off",
+    "compat-api/css": "warning"
+  }
+}

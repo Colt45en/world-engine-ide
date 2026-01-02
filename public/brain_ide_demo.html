@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <title>BrainIDE Demo</title>
+  <style>
+    body {
+      font-family: system-ui, Segoe UI, Roboto, Arial;
+      margin: 24px
+    }
+
+    textarea {
+      width: 100%;
+      height: 160px;
+      font-family: monospace
+    }
+
+    .row {
+      margin-bottom: 12px
+    }
+
+    .kbd {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600
+    }
+  </style>
+</head>
+
+<body>
+  <h1>BrainIDE Patch Demo</h1>
+  <p>This focused demo shows generating and applying patches via the gated /edit endpoint.</p>
+
+  <div class="row">
+    <label>Requested action (optional): <select id="action">
+        <option value="">(auto)</option>
+        <option value="minor_edit">minor_edit</option>
+        <option value="refactor">refactor</option>
+      </select></label>
+  </div>
+
+  <div class="row">
+    <label for="old">Old Code (base)</label>
+    <textarea id="old">def add(a,b):\n    return a+b\n</textarea>
+  </div>
+
+  <div class="row">
+    <label for="new">New Code (proposed)</label>
+    <textarea id="new">def add(a, b):\n    # clearer naming and spacing\n    return a + b\n</textarea>
+  </div>
+
+  <div class="row">
+    <button type="button" id="gen">Generate Patch</button>
+    <button type="button" id="apply">Apply Patch</button>
+  </div>
+
+  <div class="row">
+    <label for="diff">Diff output</label>
+    <textarea id="diff"></textarea>
+  </div>
+
+  <div class="row">
+    <div id="respLabel">Server response</div>
+    <output id="resp" aria-labelledby="respLabel">(none)</output>
+  </div>
+
+  <script>
+    async function gen() {
+      const payload = { old_code: document.getElementById('old').value, new_code: document.getElementById('new').value, requested_action: document.getElementById('action').value || null, text: 'demo patch' }
+      try {
+        const r = await fetch('/edit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        const j = await r.json()
+        document.getElementById('resp').textContent = JSON.stringify({ status: r.status, body: j }, null, 2)
+        if (j.diff) document.getElementById('diff').value = j.diff
+      } catch (e) { document.getElementById('resp').textContent = 'Error: ' + e }
+    }
+    async function apply() {
+      const payload = { base_code: document.getElementById('old').value, diff: document.getElementById('diff').value, requested_action: document.getElementById('action').value || null, text: 'demo apply' }
+      try {
+        const r = await fetch('/edit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        const j = await r.json()
+        document.getElementById('resp').textContent = JSON.stringify({ status: r.status, body: j }, null, 2)
+        if (j.new_code) document.getElementById('old').value = j.new_code
+      } catch (e) { document.getElementById('resp').textContent = 'Error: ' + e }
+    }
+    document.getElementById('gen').addEventListener('click', gen)
+    document.getElementById('apply').addEventListener('click', apply)
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+build/
+artifacts/
+hint-report/
+.venv/
+__pycache__/
+.git/

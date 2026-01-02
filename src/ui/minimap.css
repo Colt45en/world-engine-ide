@@ -1,0 +1,69 @@
+.minimap-card {
+  width: 260px;
+  pointer-events: auto;
+  background: var(--bg);
+  border: 1px solid var(--fg);
+  border-radius: 14px;
+  color: var(--fg);
+  overflow: hidden;
+  opacity: 0.92;
+}
+
+.minimap-header {
+  padding: 10px 10px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.minimap-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.minimap-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.hud-btn {
+  pointer-events: auto;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--fg);
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.minimap-canvas {
+  position: relative;
+  height: 180px;
+  margin: 0 10px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--fg);
+}
+
+.minimap-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: var(--fg);
+}
+
+.minimap-footer {
+  padding: 0 10px 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.minimap-meta {
+  font-size: 12px;
+  opacity: 0.86;
+}

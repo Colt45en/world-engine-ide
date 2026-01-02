@@ -8,5 +8,5 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 // Start the server
 app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`Server is running on http://localhost:${PORT}`);
 });

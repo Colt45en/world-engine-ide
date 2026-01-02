@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nexus Tool (postMessage)</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      margin: 16px;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 8px 10px;
+    }
+
+    pre {
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.06);
+      border-radius: 8px;
+      overflow: auto;
+      max-height: 50vh;
+    }
+
+    .hint {
+      opacity: 0.75;
+      font-size: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Nexus Tool</h1>
+  <div class="hint">
+    This is a minimal popup tool window that talks to the engine via <code>window.opener.postMessage</code>.
+  </div>
+
+  <div class="row" style="margin: 12px 0;">
+    <button id="hello">Send TOOL/READY</button>
+    <button id="spawn">Send WORLD_EVENT: SPAWN_NPC</button>
+    <button id="ping">Send WORLD_EVENT: PING</button>
+  </div>
+
+  <h3>Inbound (Engine → Tool)</h3>
+  <pre id="log"></pre>
+
+  <script>
+    const logEl = document.getElementById('log');
+    const logs = [];
+
+    function append(obj) {
+      logs.unshift({ at: new Date().toISOString(), ...obj });
+      logEl.textContent = JSON.stringify(logs.slice(0, 50), null, 2);
+    }
+
+    function resolveEngineOrigin() {
+      try {
+        const qs = new URLSearchParams(globalThis.location.search);
+        const fromParam = qs.get('engineOrigin');
+        if (fromParam) return new URL(fromParam).origin;
+      } catch { }
+
+      try {
+        if (document.referrer) return new URL(document.referrer).origin;
+      } catch { }
+
+      return null;
+    }
+
+    const ENGINE_ORIGIN = resolveEngineOrigin();
+    append({ type: 'INIT', engineOrigin: ENGINE_ORIGIN || '(unknown)' });
+
+    function sendToEngine(msg) {
+      if (!window.opener) return;
+      if (!ENGINE_ORIGIN) return;
+      window.opener.postMessage(msg, ENGINE_ORIGIN);
+    }
+
+    window.addEventListener('message', (e) => {
+      if (!ENGINE_ORIGIN) return;
+      if (e.origin !== ENGINE_ORIGIN) return;
+      append({ type: 'INBOUND', msg: e.data });
+
+      // Engine handshake -> Tool ready ack.
+      if (e.data && typeof e.data === 'object' && e.data.type === 'ENGINE/HELLO') {
+        sendToEngine({ type: 'TOOL/READY', atMs: Date.now() })
+      }
+    });
+
+    document.getElementById('hello').addEventListener('click', () => {
+      sendToEngine({ type: 'TOOL/READY', atMs: Date.now() });
+    });
+
+    document.getElementById('spawn').addEventListener('click', () => {
+      sendToEngine({
+        type: 'WORLD_EVENT',
+        atMs: Date.now(),
+        eventType: 'SPAWN_NPC',
+        payload: { id: 'npc_7', at: [0, 0, 0] }
+      });
+    });
+
+    document.getElementById('ping').addEventListener('click', () => {
+      sendToEngine({
+        type: 'WORLD_EVENT',
+        atMs: Date.now(),
+        eventType: 'PING',
+        payload: { now: Date.now() }
+      });
+    });
+  </script>
+</body>
+
+</html>

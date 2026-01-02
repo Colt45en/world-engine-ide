@@ -1,0 +1,48 @@
+.hud-root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1000;
+  color: var(--fg);
+}
+
+.hud-topright {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  pointer-events: none;
+}
+
+.hud-bottomright {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+.hud-pill {
+  pointer-events: auto;
+  background: var(--bg);
+  border: 1px solid var(--fg);
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.2;
+  opacity: 0.92;
+}
+
+.hud-pill-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.hud-pill-secondary {
+  margin-top: 6px;
+  opacity: 0.85;
+}

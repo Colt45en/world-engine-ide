@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Trainer UI (Gated + Patches)</title>
+    <style>
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Arial,
+          sans-serif;
+        margin: 24px;
+        line-height: 1.35;
+      }
+
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: end;
+      }
+
+      textarea {
+        width: min(980px, 100%);
+        padding: 10px;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+          monospace;
+      }
+
+      #text {
+        height: 90px;
+      }
+
+      #code {
+        height: 180px;
+      }
+
+      #new_code {
+        height: 180px;
+      }
+
+      #tests {
+        height: 140px;
+      }
+
+      #diff {
+        height: 180px;
+      }
+
+      input,
+      button,
+      select {
+        padding: 8px;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      pre {
+        background: #f6f7f8;
+        padding: 12px;
+        overflow: auto;
+        width: min(980px, 100%);
+      }
+
+      .card {
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 12px;
+        width: min(980px, 100%);
+      }
+
+      .muted {
+        color: #555;
+      }
+
+      .label {
+        margin: 10px 0 6px;
+        font-weight: 600;
+      }
+
+      .diff-view {
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+          monospace;
+        white-space: pre;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 10px;
+        width: min(980px, 100%);
+        background: #fff;
+      }
+
+      .diff-added {
+        background-color: #e6ffed;
+        color: #22863a;
+        display: block;
+      }
+
+      .diff-removed {
+        background-color: #ffeef0;
+        color: #cb2431;
+        display: block;
+      }
+
+      .diff-header {
+        color: #6f42c1;
+        font-weight: 700;
+        display: block;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Keyword → Intent + Code Evaluator (Capability Gated + Patches)</h1>
+    <p class="muted">
+      Train via /submit. Generate/apply patches via /edit (strict unified diff, logged).
+    </p>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <label for="expected">Expected intent (optional):</label><br />
+          <select id="expected">
+            <option value="">(none)</option>
+            <option value="python.generate_code">python.generate_code</option>
+            <option value="python.explain">python.explain</option>
+            <option value="python.refactor">python.refactor</option>
+            <option value="python.find_bug">python.find_bug</option>
+            <option value="python.optimize">python.optimize</option>
+            <option value="python.add_tests">python.add_tests</option>
+            <option value="python.style_lint">python.style_lint</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="action">Requested action:</label><br />
+          <select id="action">
+            <option value="">(auto from intent)</option>
+            <option value="assist">assist</option>
+            <option value="minor_edit">minor_edit</option>
+            <option value="refactor">refactor</option>
+            <option value="lint">lint</option>
+            <option value="autonomous_edit">autonomous_edit</option>
+          </select>
+        </div>
+
+        <div>
+          <button type="button" id="btnState">Refresh State</button>
+          <button type="button" id="btnReload">Reload Config</button>
+        </div>
+      </div>
+
+      <div class="label">Target filename (confined to ./workspace)</div>
+      <input id="filename" type="text" value="output_script.py" style="width: min(980px, 100%)" />
+
+      <div class="label">Intent Text</div>
+      <textarea
+        id="text"
+        placeholder="e.g. 'refactor: extract helper, keep behavior, add docstring'"
+      ></textarea>
+
+      <div class="label">Current Python Code (old_code)</div>
+      <textarea id="code" placeholder="Paste current code here..."></textarea>
+
+      <div class="label">Proposed Python Code (new_code)</div>
+      <textarea
+        id="new_code"
+        placeholder="Paste edited code here to generate a patch..."
+      ></textarea>
+
+      <div class="label">Tests (optional)</div>
+      <textarea
+        id="tests"
+        placeholder="def test_add():
+    assert add(2, 3) == 5
+"
+      ></textarea>
+
+      <div class="row">
+        <button type="button" id="btnSubmit">Submit (train)</button>
+        <button type="button" id="btnGenPatch">Generate Patch</button>
+        <button type="button" id="btnApplyPatch">Apply Patch</button>
+        <button type="button" id="btnClear">Clear</button>
+      </div>
+
+      <div class="label">Unified Diff</div>
+      <textarea id="diff" placeholder="Diff output will appear here..."></textarea>
+
+      <div class="label">Proposed Patch (Delta)</div>
+      <div id="diffView" class="diff-view">(generate a patch to preview)</div>
+    </div>
+
+    <h2>State</h2>
+    <pre id="state">Loading...</pre>
+
+    <h2>Last Response</h2>
+    <pre id="report">(none)</pre>
+
+    <script type="module">
+      let lastWriteToken = null;
+
+      function maybeStoreWriteToken(j) {
+        if (j && typeof j.write_token === 'string' && j.write_token.length > 0) {
+          lastWriteToken = j.write_token;
+        }
+      }
+
+      function renderDiffView(diffText) {
+        const container = document.getElementById('diffView');
+        container.innerHTML = '';
+        const lines = (diffText || '').split('\n');
+        for (const line of lines) {
+          const span = document.createElement('span');
+          span.textContent = line;
+          if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('@@')) {
+            span.className = 'diff-header';
+          } else if (line.startsWith('+')) {
+            span.className = 'diff-added';
+          } else if (line.startsWith('-')) {
+            span.className = 'diff-removed';
+          } else {
+            span.style.display = 'block';
+          }
+          container.appendChild(span);
+        }
+        if (!lines.length || (lines.length === 1 && lines[0] === '')) {
+          container.textContent = '(no diff)';
+        }
+      }
+
+      async function getState() {
+        const r = await fetch('/state');
+        const j = await r.json();
+        document.getElementById('state').textContent = JSON.stringify(j, null, 2);
+      }
+
+      async function reloadConfig() {
+        const r = await fetch('/config/reload');
+        const j = await r.json();
+        document.getElementById('report').textContent = JSON.stringify(j, null, 2);
+        await getState();
+      }
+
+      async function submitTrain() {
+        const payload = {
+          text: document.getElementById('text').value,
+          expected_intent: document.getElementById('expected').value || null,
+          requested_action: document.getElementById('action').value || null,
+          code: document.getElementById('code').value || null,
+          tests: document.getElementById('tests').value || null,
+        };
+
+        const r = await fetch('/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const j = await r.json();
+        document.getElementById('report').textContent = JSON.stringify(j, null, 2);
+        await getState();
+      }
+
+      async function generatePatch() {
+        const payload = {
+          text: document.getElementById('text').value || '(no-text)',
+          expected_intent: document.getElementById('expected').value || null,
+          requested_action: document.getElementById('action').value || null,
+          filename: document.getElementById('filename').value || 'output_script.py',
+          old_code: document.getElementById('code').value || '',
+          new_code: document.getElementById('new_code').value || '',
+          tests: document.getElementById('tests').value || null,
+        };
+
+        const r = await fetch('/edit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const j = await r.json();
+        maybeStoreWriteToken(j);
+        document.getElementById('report').textContent = JSON.stringify(j, null, 2);
+        if (j && j.diff !== undefined) {
+          document.getElementById('diff').value = j.diff || '';
+          renderDiffView(j.diff || '');
+        }
+        if (j && j.base_code !== undefined) {
+          document.getElementById('code').value = j.base_code || '';
+        }
+        await getState();
+      }
+
+      async function applyPatchOnce(writeToken) {
+        const payload = {
+          text: document.getElementById('text').value || '(no-text)',
+          expected_intent: document.getElementById('expected').value || null,
+          requested_action: document.getElementById('action').value || null,
+          filename: document.getElementById('filename').value || 'output_script.py',
+          base_code: document.getElementById('code').value || '',
+          diff: document.getElementById('diff').value || '',
+          write_token: writeToken || null,
+        };
+
+        const r = await fetch('/edit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const j = await r.json();
+        maybeStoreWriteToken(j);
+        return { response: r, body: j };
+      }
+
+      async function applyPatch() {
+        // Try once with the most recent token.
+        const first = await applyPatchOnce(lastWriteToken);
+        let j = first.body;
+
+        // If the supervisor demands a token, retry once with the fresh token.
+        if (
+          first.response.status === 401 &&
+          j &&
+          j.error === 'write_token_required' &&
+          typeof j.write_token === 'string'
+        ) {
+          lastWriteToken = j.write_token;
+          const second = await applyPatchOnce(lastWriteToken);
+          j = second.body;
+        }
+
+        document.getElementById('report').textContent = JSON.stringify(j, null, 2);
+        if (j && j.new_code !== undefined) {
+          document.getElementById('code').value = j.new_code || '';
+        }
+        await getState();
+      }
+
+      document.getElementById('btnState').addEventListener('click', getState);
+      document.getElementById('btnReload').addEventListener('click', reloadConfig);
+      document.getElementById('btnSubmit').addEventListener('click', submitTrain);
+      document.getElementById('btnGenPatch').addEventListener('click', generatePatch);
+      document.getElementById('btnApplyPatch').addEventListener('click', applyPatch);
+      document.getElementById('btnClear').addEventListener('click', () => {
+        document.getElementById('text').value = '';
+        document.getElementById('code').value = '';
+        document.getElementById('new_code').value = '';
+        document.getElementById('tests').value = '';
+        document.getElementById('diff').value = '';
+        document.getElementById('expected').value = '';
+        document.getElementById('action').value = '';
+      });
+
+      await getState();
+    </script>
+  </body>
+</html>

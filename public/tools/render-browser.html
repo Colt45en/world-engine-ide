@@ -1,0 +1,1189 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Live Render Browser — HTML/CSS DOM + TS Resident Compiler</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #111826;
+      --panel2: #0f1623;
+      --text: #e6edf3;
+      --muted: #9fb0c0;
+      --accent: #5eead4;
+      --bad: #fb7185;
+      --good: #34d399;
+      --line: rgba(159, 176, 192, 0.25);
+      --node: #172134;
+      --node2: #0f2230;
+      --shadow: rgba(0, 0, 0, 0.35);
+    }
+
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #070a10, #0b0f14 40%, #070a10);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      background: rgba(17, 24, 38, 0.9);
+      border-bottom: 1px solid rgba(159, 176, 192, 0.18);
+      backdrop-filter: blur(10px);
+    }
+
+    header .title {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    header .title small {
+      font-weight: 500;
+      color: var(--muted);
+    }
+
+    header .controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    button,
+    select {
+      background: var(--panel2);
+      color: var(--text);
+      border: 1px solid rgba(159, 176, 192, 0.22);
+      padding: 8px 10px;
+      border-radius: 10px;
+      box-shadow: 0 6px 18px var(--shadow);
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button:hover,
+    select:hover {
+      border-color: rgba(94, 234, 212, 0.45);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      height: calc(100vh - 56px);
+    }
+
+    .left,
+    .right {
+      display: grid;
+      gap: 10px;
+      padding: 10px;
+      overflow: hidden;
+    }
+
+    .left {
+      grid-template-rows: 1fr 1fr 1fr;
+    }
+
+    .right {
+      grid-template-rows: 1.1fr 0.9fr;
+    }
+
+    .panel {
+      background: rgba(17, 24, 38, 0.85);
+      border: 1px solid rgba(159, 176, 192, 0.18);
+      border-radius: 14px;
+      box-shadow: 0 12px 28px var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .panel .bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: rgba(15, 22, 35, 0.95);
+      border-bottom: 1px solid rgba(159, 176, 192, 0.18);
+      gap: 10px;
+    }
+
+    .panel .bar .label {
+      font-weight: 800;
+      letter-spacing: 0.2px;
+    }
+
+    .panel .bar .meta {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    textarea {
+      width: 100%;
+      height: 100%;
+      resize: none;
+      border: 0;
+      outline: none;
+      background: rgba(11, 15, 20, 0.55);
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 13px;
+      line-height: 1.35;
+      padding: 10px;
+      tab-size: 2;
+      min-height: 0;
+    }
+
+    .content {
+      min-height: 0;
+      flex: 1;
+      overflow: auto;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: white;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      border: 1px solid rgba(159, 176, 192, 0.22);
+      background: rgba(15, 22, 35, 0.6);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--muted);
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px rgba(94, 234, 212, 0.15);
+    }
+
+    .dot.bad {
+      background: var(--bad);
+      box-shadow: 0 0 0 4px rgba(251, 113, 133, 0.15);
+    }
+
+    .dot.good {
+      background: var(--good);
+      box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.15);
+    }
+
+    /* Graph */
+    #graphWrap {
+      position: relative;
+      height: 100%;
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: rgba(11, 15, 20, 0.35);
+    }
+
+    .edge {
+      stroke: rgba(159, 176, 192, 0.30);
+      stroke-width: 1;
+    }
+
+    .edge.css {
+      stroke: rgba(94, 234, 212, 0.22);
+      stroke-dasharray: 4 4;
+    }
+
+    .edge.ts {
+      stroke: rgba(52, 211, 153, 0.22);
+      stroke-dasharray: 2 6;
+    }
+
+    .node {
+      cursor: pointer;
+    }
+
+    .node circle {
+      fill: rgba(23, 33, 52, 0.95);
+      stroke: rgba(159, 176, 192, 0.30);
+      stroke-width: 1;
+    }
+
+    .node.dom circle {
+      fill: rgba(23, 33, 52, 0.95);
+    }
+
+    .node.css circle {
+      fill: rgba(15, 34, 48, 0.95);
+      stroke: rgba(94, 234, 212, 0.35);
+    }
+
+    .node.ts circle {
+      fill: rgba(17, 38, 26, 0.90);
+      stroke: rgba(52, 211, 153, 0.35);
+    }
+
+    .node.selected circle {
+      stroke: #ffd700;
+      stroke-width: 2;
+    }
+
+    .node text {
+      fill: var(--text);
+      font-size: 11px;
+      dominant-baseline: middle;
+    }
+
+    .node .small {
+      fill: var(--muted);
+      font-size: 10px;
+    }
+
+    .legend {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      display: grid;
+      gap: 6px;
+      padding: 10px;
+      border-radius: 12px;
+      background: rgba(17, 24, 38, 0.85);
+      border: 1px solid rgba(159, 176, 192, 0.18);
+      box-shadow: 0 12px 28px var(--shadow);
+      font-size: 12px;
+      color: var(--muted);
+      user-select: none;
+    }
+
+    .legend .item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(159, 176, 192, 0.18);
+      background: rgba(15, 22, 35, 0.55);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .errors {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      padding: 10px;
+      color: var(--muted);
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="title">
+      <span>Live Render Browser</span>
+      <small>HTML/CSS DOM Graph + TypeScript Resident Compiler</small>
+    </div>
+
+    <div class="controls">
+      <select id="graphMode">
+        <option value="dom_css">DOM + CSS Match Graph</option>
+        <option value="ts_ast">TypeScript AST Graph</option>
+      </select>
+      <button type="button" id="recenterBtn">Recenter</button>
+      <button type="button" id="resetBtn">Reset Example</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="left">
+      <section class="panel">
+        <div class="bar">
+          <div class="label">HTML</div>
+          <div class="meta">Parsed into DOM Tree (nodes + parent edges)</div>
+        </div>
+        <div class="content"><textarea id="htmlEditor"></textarea></div>
+      </section>
+
+      <section class="panel">
+        <div class="bar">
+          <div class="label">CSS</div>
+          <div class="meta">Parsed into CSS Rules, linked by selector matches</div>
+        </div>
+        <div class="content"><textarea id="cssEditor"></textarea></div>
+      </section>
+
+      <section class="panel">
+        <div class="bar">
+          <div class="label">TypeScript</div>
+          <div class="meta">Transpiled in-browser; AST visualizable</div>
+        </div>
+        <div class="content"><textarea id="tsEditor"></textarea></div>
+      </section>
+    </div>
+
+    <div class="right">
+      <section class="panel">
+        <div class="bar">
+          <div class="label">Preview (compiled HTML + CSS + JS)</div>
+          <div class="row">
+            <span class="pill"><span id="tsDot" class="dot"></span><span id="tsStatus">TS: waiting for
+                compiler…</span></span>
+            <span class="pill"><span id="cssDot" class="dot"></span><span id="cssStatus">CSS: ok</span></span>
+            <span class="pill"><span id="domDot" class="dot"></span><span id="domStatus">DOM: ok</span></span>
+          </div>
+        </div>
+        <div class="content"><iframe id="preview" title="Preview" sandbox="allow-scripts"></iframe></div>
+      </section>
+
+      <section class="panel">
+        <div class="bar">
+          <div class="label">Graph (visual DOM/CSS/TS structures)</div>
+          <div class="row">
+            <span class="badge" id="statsBadge">nodes: 0 • edges: 0</span>
+            <span class="badge" id="hintBadge">Tip: switch modes to view TS AST</span>
+          </div>
+        </div>
+        <div class="content" id="graphWrap">
+          <svg id="graphSvg" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid meet"></svg>
+          <div class="legend">
+            <div class="item"><span class="dot" style="background:#5eead4"></span>CSS Rule Node</div>
+            <div class="item"><span class="dot" style="background:#93c5fd"></span>DOM Node</div>
+            <div class="item"><span class="dot" style="background:#34d399"></span>TS AST Node</div>
+            <div class="item"><span
+                style="width:18px;height:0;border-top:1px solid rgba(159,176,192,0.40);display:inline-block"></span>Parent/Child
+              Edge</div>
+            <div class="item"><span
+                style="width:18px;height:0;border-top:1px dashed rgba(94,234,212,0.45);display:inline-block"></span>CSS
+              selector match</div>
+            <div class="item"><span
+                style="width:18px;height:0;border-top:1px dashed rgba(52,211,153,0.45);display:inline-block"></span>TS
+              AST link</div>
+            <div class="item">Click a node to highlight element in preview</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // ----------------------------
+    // 1) Example content (editable)
+    // ----------------------------
+    const DEFAULT_HTML = `<!doctype html>
+<html>
+  <body>
+    <main class="app">
+      <h1 id="title">Render Browser</h1>
+      <p class="lead">Type HTML/CSS/TS and watch the DOM graph evolve.</p>
+
+      <section class="cards">
+        <article class="card"><h2>DOM</h2><p>Tree nodes + edges</p></article>
+        <article class="card"><h2>CSS</h2><p>Rules matched to elements</p></article>
+        <article class="card"><h2>TS</h2><p>Compiled in-browser</p></article>
+      </section>
+
+      <button type="button" id="btn">Click me</button>
+      <div id="out"></div>
+    </main>
+  </body>
+</html>`;
+
+    const DEFAULT_CSS = `:root { font-family: system-ui; }
+body { margin: 20px; background: #0b1020; color: #e6edf3; }
+.app { max-width: 900px; margin: 0 auto; }
+#title { color: #5eead4; letter-spacing: 0.5px; }
+.lead { color: #9fb0c0; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 14px 0; }
+.card { padding: 12px; border: 1px solid rgba(159,176,192,0.25); border-radius: 12px; background: rgba(255,255,255,0.03); }
+.card h2 { margin: 0 0 6px; }
+button { padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(94,234,212,0.55); background: rgba(94,234,212,0.15); color: #e6edf3; cursor: pointer; }
+button:hover { background: rgba(94,234,212,0.25); }
+.cards .card:nth-child(2) { border-color: rgba(147,197,253,0.35); }
+#out { margin-top: 10px; color: #93c5fd; }`;
+
+    const DEFAULT_TS = `const btn = document.getElementById("btn") as HTMLButtonElement;
+const out = document.getElementById("out") as HTMLDivElement;
+
+type RenderEvent = { kind: "click"; t: number; message: string };
+
+function emit(e: RenderEvent) {
+  out.textContent = "[TS] " + e.kind + " @" + e.t + ": " + e.message;
+}
+
+btn.addEventListener("click", () => {
+  emit({ kind: "click", t: Date.now(), message: "TypeScript is resident and live." });
+});`;
+
+    const htmlEditor = document.getElementById("htmlEditor");
+    const cssEditor = document.getElementById("cssEditor");
+    const tsEditor = document.getElementById("tsEditor");
+    const preview = document.getElementById("preview");
+    const graphSvg = document.getElementById("graphSvg");
+    const graphMode = document.getElementById("graphMode");
+
+    const tsDot = document.getElementById("tsDot");
+    const cssDot = document.getElementById("cssDot");
+    const domDot = document.getElementById("domDot");
+    const tsStatus = document.getElementById("tsStatus");
+    const cssStatus = document.getElementById("cssStatus");
+    const domStatus = document.getElementById("domStatus");
+    const statsBadge = document.getElementById("statsBadge");
+    const hintBadge = document.getElementById("hintBadge");
+
+    const recenterBtn = document.getElementById("recenterBtn");
+    const resetBtn = document.getElementById("resetBtn");
+
+    // ----------------------------
+    // 2a) Optional input feed: IndexedDB decoding_store
+    // - Consumes runs saved by public/tools/lmn-ide.html
+    // - No UI: load latest on boot, refresh on BroadcastChannel messages
+    // ----------------------------
+    function openDecodingDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open("decoding_store", 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains("runs")) {
+            const store = db.createObjectStore("runs", { keyPath: "id" });
+            store.createIndex("by_time", "createdAt");
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function dbGetLatestRun() {
+      const db = await openDecodingDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction("runs", "readonly");
+        const store = tx.objectStore("runs");
+        const idx = store.index("by_time");
+        const req = idx.openCursor(null, "prev");
+        req.onsuccess = () => resolve(req.result ? req.result.value : null);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    let lastLoadedRunId = "";
+    let userEdited = false;
+
+    function applyRunToEditors(run) {
+      if (!run || !run.files) return false;
+      const nextHtml = run.files.html;
+      const nextCss = run.files.css;
+      const nextTs = run.files.typescript ?? run.files.ts;
+      if (typeof nextHtml !== "string" && typeof nextCss !== "string" && typeof nextTs !== "string") return false;
+
+      if (typeof nextHtml === "string") htmlEditor.value = nextHtml;
+      if (typeof nextCss === "string") cssEditor.value = nextCss;
+      if (typeof nextTs === "string") tsEditor.value = nextTs;
+
+      lastLoadedRunId = String(run.id || "");
+      return true;
+    }
+
+    async function tryLoadLatestFromDecodingStore() {
+      try {
+        const run = await dbGetLatestRun();
+        if (!run) return false;
+        if (String(run.id || "") && String(run.id || "") === lastLoadedRunId) return true;
+        const applied = applyRunToEditors(run);
+        return applied;
+      } catch (err) {
+        console.warn("Decoding store load failed:", err);
+        return false;
+      }
+    }
+
+    function setDot(dotEl, ok) {
+      dotEl.classList.remove("bad", "good");
+      dotEl.classList.add(ok ? "good" : "bad");
+    }
+
+    // ----------------------------
+    // 2) TypeScript compiler loader
+    // ----------------------------
+    // Official TS services bundle (browser)
+    let TS = null;
+
+    async function loadTypeScript() {
+      try {
+        // typescriptServices.js exposes global "ts"
+        const script = document.createElement("script");
+        script.src = "https://unpkg.com/typescript@5.6.3/lib/typescriptServices.js";
+        script.async = true;
+        document.head.appendChild(script);
+
+        await new Promise((resolve, reject) => {
+          script.onload = resolve;
+          script.onerror = reject;
+        });
+
+        if (!window.ts) throw new Error("TypeScript compiler did not load.");
+        TS = window.ts;
+        tsStatus.textContent = "TS: compiler loaded";
+        setDot(tsDot, true);
+      } catch (err) {
+        TS = null;
+        tsStatus.textContent = "TS: compiler load failed";
+        setDot(tsDot, false);
+        console.error(err);
+      }
+    }
+
+    // ----------------------------
+    // 3) HTML/CSS/TS compilation
+    // ----------------------------
+    function buildPreviewDocument(html, css, js) {
+      // Ensure CSS and JS injected even if HTML lacks head/body tags
+      const safeCss = `<style>${css || ""}</style>`;
+      const safeJs = `<script>${js || ""}<\/script>`;
+
+      // If html already has </head> insert before it; else prepend.
+      if (/<\/head>/i.test(html)) {
+        html = html.replace(/<\/head>/i, safeCss + "\n</head>");
+      } else {
+        html = safeCss + "\n" + html;
+      }
+
+      // If html already has </body> insert before it; else append.
+      if (/<\/body>/i.test(html)) {
+        html = html.replace(/<\/body>/i, safeJs + "\n</body>");
+      } else {
+        html = html + "\n" + safeJs;
+      }
+      return html;
+    }
+
+    function compileTypeScript(tsCode) {
+      if (!TS) return { ok: false, js: "", diagnostics: ["TypeScript compiler not loaded."] };
+
+      const result = TS.transpileModule(tsCode, {
+        compilerOptions: {
+          target: TS.ScriptTarget.ES2020,
+          module: TS.ModuleKind.ES2020,
+          strict: true,
+          esModuleInterop: true,
+          skipLibCheck: true
+        },
+        reportDiagnostics: true
+      });
+
+      const diags = (result.diagnostics || []).map(d => {
+        const msg = TS.flattenDiagnosticMessageText(d.messageText, "\n");
+        const pos = d.file && typeof d.start === "number"
+          ? d.file.getLineAndCharacterOfPosition(d.start)
+          : null;
+        if (pos) return `${d.file.fileName}:${pos.line + 1}:${pos.character + 1}  ${msg}`;
+        return msg;
+      });
+
+      return { ok: diags.length === 0, js: result.outputText || "", diagnostics: diags };
+    }
+
+    // ----------------------------
+    // 4) Graph model types
+    // ----------------------------
+    function uid(prefix) {
+      return prefix + "_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
+    }
+
+    // Node: { id, kind: "dom"|"css"|"ts", label, meta, depth, x, y, ref, selector }
+    // Edge: { from, to, kind: "tree"|"cssmatch"|"tslink" }
+    let lastDomGraph = null;
+    let selectedNodeId = null;
+
+    function clearSvg() {
+      while (graphSvg.firstChild) graphSvg.removeChild(graphSvg.firstChild);
+    }
+
+    // ----------------------------
+    // helper: deterministic CSS path for an element (used as stable id)
+    // ----------------------------
+    function cssPath(el) {
+      if (!el || el.nodeType !== 1) return '';
+      if (el.id) return `#${el.id}`;
+      const parts = [];
+      while (el && el.nodeType === 1) {
+        let part = el.tagName.toLowerCase();
+        if (el.classList && el.classList.length) part += '.' + [...el.classList].join('.');
+        const parent = el.parentElement;
+        if (parent) {
+          const idx = Array.prototype.indexOf.call(parent.children, el) + 1;
+          part += `:nth-child(${idx})`;
+        }
+        parts.unshift(part);
+        el = el.parentElement;
+      }
+      return parts.join(' > ');
+    }
+
+    // ----------------------------
+    // 5) DOM parsing + tree extraction (stable ids)
+    // ----------------------------
+    function parseHtmlToDomGraph(html) {
+      try {
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const root = doc.documentElement;
+
+        const nodes = [];
+        const edges = [];
+
+        const idMap = new Map(); // Element -> nodeId
+
+        function labelForEl(el) {
+          const tag = el.tagName.toLowerCase();
+          const id = el.id ? `#${el.id}` : "";
+          const cls = el.classList && el.classList.length ? "." + [...el.classList].join(".") : "";
+          return `${tag}${id}${cls}`.slice(0, 48);
+        }
+
+        function walk(el, depth, parentId) {
+          // Only element nodes
+          if (!el || el.nodeType !== 1) return;
+
+          const selector = cssPath(el) || (el.tagName || '').toLowerCase();
+          // Make stable node id from selector
+          const nid = `dom_${selector}`;
+
+          idMap.set(el, nid);
+
+          nodes.push({
+            id: nid,
+            kind: "dom",
+            label: labelForEl(el),
+            meta: el.tagName.toLowerCase(),
+            depth,
+            ref: el,
+            selector,
+            x: 0, y: 0
+          });
+
+          if (parentId) edges.push({ from: parentId, to: nid, kind: "tree" });
+
+          const children = Array.from(el.children || []);
+          for (const c of children) walk(c, depth + 1, nid);
+        }
+
+        walk(root, 0, null);
+        domStatus.textContent = "DOM: ok";
+        setDot(domDot, true);
+        return { ok: true, nodes, edges, doc, elementIdMap: idMap };
+      } catch (err) {
+        domStatus.textContent = "DOM: parse failed";
+        setDot(domDot, false);
+        return { ok: false, nodes: [], edges: [], doc: null, elementIdMap: new Map(), error: String(err) };
+      }
+    }
+
+    // ----------------------------
+    // 6) CSS parsing + rule extraction + selector match linking
+    // ----------------------------
+    function parseCssToRules(cssText) {
+      const rules = [];
+      const parseErrors = [];
+
+      try {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync(cssText || "");
+
+        function walkRules(ruleList, parentMeta) {
+          for (const r of Array.from(ruleList)) {
+            if (r.type === CSSRule.STYLE_RULE) {
+              const selector = (r.selectorText || "").trim();
+              rules.push({
+                id: `css_${selector}`,
+                kind: "css",
+                selector,
+                meta: parentMeta || "style",
+              });
+            } else if (r.type === CSSRule.MEDIA_RULE) {
+              // Flatten media children but keep meta
+              const mediaText = r.conditionText || "media";
+              walkRules(r.cssRules, `@media ${mediaText}`);
+            } else {
+              // Keep other rule types as text nodes (optional)
+              // Commented out to keep graph clean.
+            }
+          }
+        }
+
+        walkRules(sheet.cssRules, null);
+        cssStatus.textContent = "CSS: ok";
+        setDot(cssDot, true);
+        return { ok: true, rules, errors: parseErrors };
+      } catch (err) {
+        cssStatus.textContent = "CSS: parse failed";
+        setDot(cssDot, false);
+        return { ok: false, rules: [], errors: [String(err)] };
+      }
+    }
+
+    function linkCssRulesToDom(cssRules, domDoc, elementIdMap) {
+      const nodes = [];
+      const edges = [];
+
+      // Add CSS rule nodes
+      for (const r of cssRules) {
+        nodes.push({
+          id: r.id,
+          kind: "css",
+          label: (r.selector || "(unknown selector)").slice(0, 44),
+          meta: r.meta,
+          depth: 0,
+          ref: r,
+          x: 0, y: 0
+        });
+      }
+
+      if (!domDoc) return { nodes, edges };
+
+      // Selector matches: rule -> element
+      for (const r of cssRules) {
+        const sel = (r.selector || "").trim();
+        if (!sel) continue;
+
+        let matched = [];
+        try {
+          matched = Array.from(domDoc.querySelectorAll(sel));
+        } catch {
+          // Invalid selector: ignore, but keep node
+          continue;
+        }
+
+        for (const el of matched) {
+          const domId = elementIdMap.get(el);
+          if (!domId) continue;
+          edges.push({ from: r.id, to: domId, kind: "cssmatch" });
+        }
+      }
+
+      return { nodes, edges };
+    }
+
+    // ----------------------------
+    // 7) TypeScript AST graph
+    // ----------------------------
+    function parseTypeScriptAst(tsCode) {
+      if (!TS) return { ok: false, nodes: [], edges: [], error: "TS compiler not loaded." };
+
+      const sf = TS.createSourceFile("resident.ts", tsCode, TS.ScriptTarget.Latest, true, TS.ScriptKind.TS);
+
+      const nodes = [];
+      const edges = [];
+
+      function shortKind(k) {
+        return TS.SyntaxKind[k] || String(k);
+      }
+
+      function walk(node, depth, parentId) {
+        const nid = uid("ts");
+        const kindName = shortKind(node.kind);
+        const text = (node.getText && node.getText(sf)) ? node.getText(sf) : "";
+        const label = (kindName + (text ? `: ${text.slice(0, 18).replace(/\s+/g, " ")}` : "")).slice(0, 48);
+
+        nodes.push({
+          id: nid,
+          kind: "ts",
+          label,
+          meta: kindName,
+          depth,
+          ref: node,
+          x: 0, y: 0
+        });
+
+        if (parentId) edges.push({ from: parentId, to: nid, kind: "tslink" });
+
+        node.forEachChild(child => walk(child, depth + 1, nid));
+      }
+
+      walk(sf, 0, null);
+      return { ok: true, nodes, edges };
+    }
+
+    // ----------------------------
+    // 8) Layout: deterministic tree + columns
+    // ----------------------------
+    function layoutTree(nodes, edges, opts) {
+      const { width = 1200, height = 700, xPad = 40, yPad = 30, levelH = 70, nodeW = 220 } = opts || {};
+      const byId = new Map(nodes.map(n => [n.id, n]));
+      const children = new Map(nodes.map(n => [n.id, []]));
+      const incoming = new Map(nodes.map(n => [n.id, 0]));
+
+      for (const e of edges) {
+        if (e.kind !== "tree" && e.kind !== "tslink") continue;
+        if (!children.has(e.from)) children.set(e.from, []);
+        children.get(e.from).push(e.to);
+        incoming.set(e.to, (incoming.get(e.to) || 0) + 1);
+      }
+
+      const roots = nodes.filter(n => (incoming.get(n.id) || 0) === 0);
+
+      // Leaf-order x assignment
+      let cursor = 0;
+      const leafX = new Map();
+
+      function dfs(id) {
+        const kids = children.get(id) || [];
+        if (!kids.length) {
+          leafX.set(id, cursor++);
+          return leafX.get(id);
+        }
+        const xs = kids.map(dfs);
+        const mid = xs.reduce((a, b) => a + b, 0) / xs.length;
+        leafX.set(id, mid);
+        return mid;
+      }
+
+      for (const r of roots) dfs(r.id);
+
+      const maxLeaf = Math.max(1, cursor - 1);
+      for (const n of nodes) {
+        const lx = leafX.get(n.id);
+        const nx = xPad + (maxLeaf ? (lx / maxLeaf) * (width - 2 * xPad) : (width / 2));
+        const ny = yPad + n.depth * levelH;
+        n.x = nx;
+        n.y = ny;
+      }
+
+      // If graph is deep, expand viewBox height
+      const maxDepth = Math.max(...nodes.map(n => n.depth), 0);
+      const neededH = yPad + maxDepth * levelH + 120;
+      return { viewW: width, viewH: Math.max(height, neededH) };
+    }
+
+    function layoutCssColumn(cssNodes, domNodes, viewW, viewH) {
+      // Place CSS nodes in a left column with vertical spacing
+      const x = 140;
+      const top = 60;
+      const step = Math.max(22, Math.min(48, (viewH - top - 60) / Math.max(1, cssNodes.length)));
+      cssNodes.forEach((n, i) => {
+        n.x = x;
+        n.y = top + i * step;
+      });
+
+      // Slightly push DOM nodes right to make room
+      for (const n of domNodes) n.x = Math.max(n.x, 320);
+    }
+
+    // ----------------------------
+    // 9) Render SVG graph
+    // ----------------------------
+    function renderGraph(nodes, edges, viewW, viewH) {
+      clearSvg();
+      graphSvg.setAttribute("viewBox", `0 0 ${viewW} ${viewH}`);
+
+      const ns = "http://www.w3.org/2000/svg";
+
+      function line(x1, y1, x2, y2, cls) {
+        const el = document.createElementNS(ns, "line");
+        el.setAttribute("x1", x1);
+        el.setAttribute("y1", y1);
+        el.setAttribute("x2", x2);
+        el.setAttribute("y2", y2);
+        el.setAttribute("class", cls);
+        graphSvg.appendChild(el);
+      }
+
+      function nodeG(n) {
+        const g = document.createElementNS(ns, "g");
+        g.setAttribute("class", `node ${n.kind}` + (n.id === selectedNodeId ? " selected" : ""));
+        g.setAttribute("transform", `translate(${n.x},${n.y})`);
+        g.setAttribute("data-nid", n.id);
+
+        const c = document.createElementNS(ns, "circle");
+        c.setAttribute("r", n.kind === "css" ? "11" : "12");
+        g.appendChild(c);
+
+        const t = document.createElementNS(ns, "text");
+        t.setAttribute("x", "18");
+        t.setAttribute("y", "0");
+        t.textContent = n.label;
+        g.appendChild(t);
+
+        if (n.meta && n.meta !== n.label) {
+          const s = document.createElementNS(ns, "text");
+          s.setAttribute("x", "18");
+          s.setAttribute("y", "14");
+          s.setAttribute("class", "small");
+          s.textContent = n.meta.slice(0, 42);
+          g.appendChild(s);
+        }
+
+        // Hover tooltip via title
+        const title = document.createElementNS(ns, "title");
+        title.textContent = `${n.kind.toUpperCase()} • ${n.label}\n${n.meta || ""}`;
+        g.appendChild(title);
+
+        // Click behavior: if DOM node, send highlight to iframe; if CSS node, try to highlight the selector
+        g.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          if (n.kind === 'dom' && n.selector) {
+            // send highlight message into iframe
+            try {
+              preview.contentWindow.postMessage({ type: 'highlight', selector: n.selector }, '*');
+              selectedNodeId = n.id;
+              hintBadge.textContent = `Selected: ${n.selector}`;
+              // re-render to show selection
+              scheduleRebuild();
+            } catch (err) { console.warn('postMessage failed', err); }
+          } else if (n.kind === 'css' && n.label) {
+            // try to highlight the selector (label stores selector truncated)
+            try {
+              preview.contentWindow.postMessage({ type: 'highlight', selector: n.label }, '*');
+              hintBadge.textContent = `Requested highlight: ${n.label}`;
+            } catch (err) { console.warn('postMessage failed', err); }
+          }
+        });
+
+        return g;
+      }
+
+      const byId = new Map(nodes.map(n => [n.id, n]));
+
+      // edges
+      for (const e of edges) {
+        const a = byId.get(e.from);
+        const b = byId.get(e.to);
+        if (!a || !b) continue;
+        const cls =
+          e.kind === "cssmatch" ? "edge css" :
+            e.kind === "tslink" ? "edge ts" :
+              "edge";
+        line(a.x, a.y, b.x, b.y, cls);
+      }
+
+      // nodes
+      for (const n of nodes) {
+        graphSvg.appendChild(nodeG(n));
+      }
+
+      statsBadge.textContent = `nodes: ${nodes.length} • edges: ${edges.length}`;
+    }
+
+    // ----------------------------
+    // 10) Orchestrator (compile + graph + preview)
+    // ----------------------------
+    let scheduled = false;
+
+    function scheduleRebuild() {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        rebuildAll();
+      });
+    }
+
+    function rebuildAll() {
+      const html = htmlEditor.value;
+      const css = cssEditor.value;
+      const ts = tsEditor.value;
+
+      // TS compile
+      const tsOut = compileTypeScript(ts);
+      setDot(tsDot, tsOut.ok);
+      tsStatus.textContent = tsOut.ok ? "TS: ok" : "TS: diagnostics";
+      if (!tsOut.ok) console.warn("TS diagnostics:\n" + tsOut.diagnostics.join("\n"));
+
+      // Bridge script injected into preview for event capture + highlight
+      const bridgeScript = `
+(function(){
+  function send(type, data){ try { parent.postMessage({type: type, data: data}, '*'); } catch(e){} }
+
+  // Capture clicks and send a stable selector path
+  window.addEventListener('click', function(e){
+    try {
+      var el = e.target;
+      var parts = [];
+      while(el && el.nodeType === 1){
+        if (el.id) { parts.unshift('#' + el.id); break; }
+        var part = el.tagName.toLowerCase();
+        if (el.classList && el.classList.length) part += '.' + Array.from(el.classList).join('.');
+        var parent = el.parentElement;
+        if (parent){
+          var idx = Array.prototype.indexOf.call(parent.children, el) + 1;
+          part += ':nth-child(' + idx + ')';
+        }
+        parts.unshift(part);
+        el = el.parentElement;
+      }
+      var selector = parts.join(' > ');
+      send('element-click', { selector: selector });
+    } catch(e) { }
+  }, true);
+
+  // Respond to highlight messages from parent
+  window.addEventListener('message', function(ev){
+    try {
+      var m = ev.data;
+      if (!m || !m.type) return;
+      if (m.type === 'highlight' && m.selector) {
+        try {
+          var el = document.querySelector(m.selector);
+          if (!el) return;
+          // flash an outline
+          el.__rb_old = el.style.outline;
+          el.style.outline = '3px solid rgba(94,234,212,0.9)';
+          setTimeout(function(){ if (el) el.style.outline = el.__rb_old || ''; }, 1400);
+        } catch(e){}
+      }
+    } catch(e){}
+  });
+})();
+`;
+
+      // Preview iframe
+      const docText = buildPreviewDocument(html, css, tsOut.js + '\n' + bridgeScript);
+      preview.srcdoc = docText;
+
+      // Graph modes
+      const mode = graphMode.value;
+
+      if (mode === "ts_ast") {
+        const ast = parseTypeScriptAst(ts);
+        if (!ast.ok) {
+          renderGraph([], [], 1200, 700);
+          return;
+        }
+        const { viewW, viewH } = layoutTree(ast.nodes, ast.edges, { width: 1200, height: 700, levelH: 70 });
+        renderGraph(ast.nodes, ast.edges, viewW, viewH);
+        return;
+      }
+
+      // DOM + CSS mode
+      const dom = parseHtmlToDomGraph(html);
+      lastDomGraph = dom; // keep a reference for message handling
+      const cssParsed = parseCssToRules(css);
+
+      const cssLink = linkCssRulesToDom(cssParsed.rules, dom.doc, dom.elementIdMap);
+
+      // Compose graph set
+      const nodes = [...dom.nodes, ...cssLink.nodes];
+      const edges = [...dom.edges, ...cssLink.edges];
+
+      // Layout DOM as tree, then CSS column
+      const domNodes = dom.nodes;
+      const domEdges = dom.edges;
+
+      const { viewW, viewH } = layoutTree(domNodes, domEdges, { width: 1200, height: 700, levelH: 70 });
+      layoutCssColumn(cssLink.nodes, domNodes, viewW, viewH);
+
+      renderGraph(nodes, edges, viewW, viewH);
+    }
+
+    // ----------------------------
+    // 11) Host message handling: receive clicks from iframe
+    // ----------------------------
+    window.addEventListener('message', (ev) => {
+      try {
+        const m = ev.data;
+        if (!m || !m.type) return;
+        if (m.type === 'element-click') {
+          const sel = m.data && m.data.selector;
+          if (!sel || !lastDomGraph) return;
+          try {
+            const target = lastDomGraph.doc.querySelector(sel);
+            if (!target) return;
+            const nodeId = lastDomGraph.elementIdMap.get(target);
+            if (nodeId) {
+              selectedNodeId = nodeId;
+              hintBadge.textContent = `Selected: ${sel}`;
+              scheduleRebuild();
+            }
+          } catch (err) { console.warn('selector mapping failed', err); }
+        }
+      } catch (err) { /* ignore */ }
+    });
+
+    // ----------------------------
+    // 12) UI init + events
+    // ----------------------------
+    function resetExample() {
+      htmlEditor.value = DEFAULT_HTML;
+      cssEditor.value = DEFAULT_CSS;
+      tsEditor.value = DEFAULT_TS;
+      scheduleRebuild();
+    }
+
+    htmlEditor.addEventListener("input", scheduleRebuild);
+    cssEditor.addEventListener("input", scheduleRebuild);
+    tsEditor.addEventListener("input", scheduleRebuild);
+    htmlEditor.addEventListener("input", () => { userEdited = true; });
+    cssEditor.addEventListener("input", () => { userEdited = true; });
+    tsEditor.addEventListener("input", () => { userEdited = true; });
+    graphMode.addEventListener("change", scheduleRebuild);
+
+    recenterBtn.addEventListener("click", () => {
+      // Deterministic layout makes "recenter" equivalent to rebuild
+      scheduleRebuild();
+    });
+
+    resetBtn.addEventListener("click", resetExample);
+
+    // Boot
+    try {
+      if ("BroadcastChannel" in globalThis) {
+        const ch = new BroadcastChannel("lmn-decoding");
+        ch.onmessage = (ev) => {
+          try {
+            const msg = ev.data;
+            if (!msg || msg.type !== "decoding-run-saved") return;
+            if (userEdited) return;
+            tryLoadLatestFromDecodingStore()
+              .then((ok) => { if (ok) scheduleRebuild(); })
+              .catch((err) => console.warn("Decoding store reload failed:", err));
+          } catch (err) {
+            console.warn("Decoding broadcast handling failed:", err);
+          }
+        };
+      }
+    } catch (err) {
+      console.warn("BroadcastChannel init failed:", err);
+    }
+
+    tryLoadLatestFromDecodingStore()
+      .then((loaded) => { if (!loaded) resetExample(); })
+      .catch((err) => { console.warn("Decoding store boot load failed:", err); resetExample(); })
+      .finally(() => { loadTypeScript().then(scheduleRebuild); });
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,14 @@
+dist
+build
+node_modules
+coverage
+*.min.*
+public
+artifacts
+hint-report
+offline-job-runner
+.venv
+**/.venv
+brain/.venv
+brain/**/__pycache__
+brain/**/.pytest_cache

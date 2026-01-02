@@ -1,0 +1,120 @@
+{
+  "db_path": "trainer.db",
+  "html_path": "interface.html",
+  "python_module": {
+    "thresholds": {
+      "assist_mode": 0.5,
+      "minor_edits": 0.7,
+      "refactor_lint": 0.9,
+      "autonomous_editing": 1.0
+    },
+    "milestones": {
+      "advisor": 0.5,
+      "junior_editor": 0.7,
+      "senior_editor": 0.9,
+      "architect": 1.0
+    },
+    "standards": {
+      "moving_window_size": 50,
+      "min_tokens_for_full_clarity": 4,
+      "weights": {
+        "correctness": 0.55,
+        "clarity": 0.2,
+        "safety": 0.15,
+        "confidence": 0.1
+      },
+      "combo_weights": {
+        "intent": 0.5,
+        "code": 0.5
+      }
+    },
+    "capability_gating": {
+      "actions": {
+        "assist": "assist_mode",
+        "minor_edit": "minor_edits",
+        "refactor": "refactor_lint",
+        "lint": "refactor_lint",
+        "autonomous_edit": "autonomous_editing"
+      },
+      "intent_default_action": {
+        "python.explain": "assist",
+        "python.find_bug": "assist",
+        "python.generate_code": "assist",
+        "python.add_tests": "assist",
+        "python.optimize": "minor_edit",
+        "python.style_lint": "lint",
+        "python.refactor": "refactor",
+        "unknown": "assist"
+      }
+    },
+    "code_policy": {
+      "pass_threshold": 0.5,
+      "timeout_seconds": 2.0,
+      "max_complexity": 20,
+      "forbidden_imports": [
+        "os",
+        "sys",
+        "subprocess",
+        "socket",
+        "pathlib",
+        "shutil",
+        "resource",
+        "ctypes"
+      ],
+      "dangerous_builtins": ["eval", "exec", "compile", "open", "__import__"],
+      "enable_posix_resource_limits": true,
+      "posix_cpu_seconds": 2,
+      "posix_memory_mb": 256,
+      "posix_fsize_mb": 4,
+      "posix_nproc": 16,
+      "weights": {
+        "ast_parse": 0.2,
+        "compile": 0.15,
+        "policy": 0.2,
+        "runtime": 0.25,
+        "tests": 0.2
+      }
+    },
+    "keyword_map": {
+      "python.generate_code": {
+        "weight": 1.0,
+        "keywords": ["generate", "write", "create", "build", "implement", "code", "script"]
+      },
+      "python.explain": {
+        "weight": 1.0,
+        "keywords": ["explain", "describe", "why", "how", "meaning", "walkthrough"]
+      },
+      "python.refactor": {
+        "weight": 1.1,
+        "keywords": ["refactor", "restructure", "cleanup", "simplify", "modularize"]
+      },
+      "python.find_bug": {
+        "weight": 1.2,
+        "keywords": ["bug", "error", "traceback", "fix", "issue", "crash", "broken"]
+      },
+      "python.optimize": {
+        "weight": 1.2,
+        "keywords": ["optimize", "faster", "performance", "speed", "reduce", "allocations"]
+      },
+      "python.add_tests": {
+        "weight": 1.0,
+        "keywords": ["test", "tests", "pytest", "unittest", "coverage", "assert"]
+      },
+      "python.style_lint": {
+        "weight": 0.9,
+        "keywords": ["lint", "format", "style", "pep8", "ruff", "black", "isort"]
+      }
+    },
+    "patch_editing": {
+      "max_new_code_chars": 200000,
+      "require_code_eval_pass": true,
+      "require_write_token": true,
+      "write_token_ttl_seconds": 120,
+      "workspace_root": "workspace",
+      "write_to_file": true,
+      "max_changes_by_required_unlock": {
+        "minor_edits": 10
+      }
+    }
+  }
+}

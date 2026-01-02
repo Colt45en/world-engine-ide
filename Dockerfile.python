@@ -1,0 +1,24 @@
+# Dockerfile for Python Brain service
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy project files
+COPY . /app
+
+# Install Python deps
+RUN python -m pip install --upgrade pip setuptools
+RUN if [ -f brain/requirements.txt ]; then pip install -r brain/requirements.txt || true; fi
+
+ENV PYTHONPATH=/app/brain/src
+
+EXPOSE 8000 9000
+
+# Start both the WebSocket relay and HTTP server
+CMD ["/bin/sh", "-c", "python -m brain.relay.ws_server & python main.py 0.0.0.0 8000"]

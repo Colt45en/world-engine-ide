@@ -1,0 +1,45 @@
+.panel-card {
+  width: 320px;
+  pointer-events: auto;
+  background: var(--bg);
+  border: 1px solid var(--fg);
+  border-radius: 14px;
+  color: var(--fg);
+  overflow: hidden;
+  opacity: 0.92;
+}
+
+.panel-header {
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.panel-body {
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.panel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-muted {
+  opacity: 0.75;
+  font-size: 12px;
+}
+
+.panel-actions {
+  display: flex;
+  justify-content: flex-end;
+}

@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    volumes:
+      - ./:/app:cached
+      - /app/node_modules
+    ports:
+      - '5173:5173'
+    environment:
+      - PORT=5173
+    command: npm run dev
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    volumes:
+      - ./:/app:cached
+      - /app/node_modules
+    environment:
+      - ORCH_DAEMON=1
+    command: npm run orchestrator:run
+
+  brain:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    volumes:
+      - ./:/app:cached
+    environment:
+      - PYTHONPATH=/app/brain/src
+      - BRAIN_HOST=0.0.0.0
+      - BRAIN_HTTP_PORT=8000
+      - BRAIN_WS_PORT=9000
+    ports:
+      - '8000:8000'
+      - '9000:9000'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:8000/state || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  tf-smoke:
+    image: tensorflow/tensorflow:2.12.0
+    depends_on:
+      - brain
+    volumes:
+      - ./:/app:cached
+    working_dir: /app
+    command:
+      [
+        '/bin/sh',
+        '-c',
+        'python -m pip install --upgrade pip && pip install pytest && pytest -q brain/tests/test_training_smoke.py',
+      ]
+    environment:
+      - PYTHONPATH=/app/brain/src
+
+networks:
+  default:
+    name: world-engine-net

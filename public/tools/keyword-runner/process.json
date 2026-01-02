@@ -1,0 +1,42 @@
+{
+  "mappingVersion": "1.0.0",
+  "keywords": {
+    "TE101": {
+      "action": "cavityMode",
+      "params": {
+        "mode": "TE",
+        "l": 1,
+        "m": 0,
+        "n": 1
+      }
+    },
+    "TM111": {
+      "action": "cavityMode",
+      "params": {
+        "mode": "TM",
+        "l": 1,
+        "m": 1,
+        "n": 1
+      }
+    },
+    "528": {
+      "action": "tagNumber",
+      "params": {
+        "value": 528
+      }
+    },
+    "&token:": {
+      "action": "markUnfold",
+      "params": {}
+    }
+  },
+  "defaults": {
+    "cavity": {
+      "a": 0.1,
+      "b": 0.05,
+      "d": 0.2,
+      "er": 1.0,
+      "ur": 1.0
+    }
+  }
+}

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Keyword Runner + Decoding Store</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4; }
+        h2 { background: #333; color: #fff; padding: 10px; border-radius: 6px; }
+        .panel { background: #fff; padding: 15px; border-radius: 8px; border-left: 5px solid #333; margin: 12px 0; }
+        textarea { width: 100%; min-height: 140px; padding: 10px; border-radius: 8px; border: 1px solid #ddd; }
+        button { padding: 10px 12px; border-radius: 8px; border: 1px solid #222; background: #222; color: #fff; cursor: pointer; font-weight: 600; }
+        button.secondary { background: #fff; color: #222; }
+        pre { background: #111; color: #eee; padding: 12px; border-radius: 8px; overflow: auto; }
+        .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+    <h1>Process JSON → Keyword Runner → Decoding Storage</h1>
+
+    <div class="panel">
+        <h2>Input</h2>
+        <textarea id="src">TE101 and TM111 at 528 &token:HELLO</textarea>
+        <div class="row" style="margin-top: 10px;">
+            <button id="runBtn">Run + Save</button>
+            <button id="loadBtn" class="secondary">Load Latest Saved</button>
+            <button id="clearBtn" class="secondary">Clear Store</button>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Latest Output</h2>
+        <pre id="out">{}</pre>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+</body>
+</html>

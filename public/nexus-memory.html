@@ -1,0 +1,991 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>NEXUS Memory Vault — Brain + Codepad + Persistent Memory</title>
+
+  <!-- Tailwind (demo embed) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bg: '#000000', panel: '#05070c', panel2: '#0a0e16',
+            lime: '#b6ff00', lime2: '#d7ff66',
+            neon: '#ff6a00', neon2: '#ff9a4d',
+            text: '#e8f0ff', muted: '#9aa7b5'
+          }
+        }
+      }
+    };
+  </script>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <style>
+    body {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    .mono {
+      font-family: inherit;
+    }
+  </style>
+</head>
+
+<body class="bg-black text-white">
+  <main x-data="NEXUS_MEMORY()" x-init="init()" class="p-4 space-y-4">
+    <header class="flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-bold">NEXUS Memory Vault</h1>
+        <div class="text-xs text-muted">Brain sandbox + Codepad sandbox + IndexedDB memory vault (parent-owned)</div>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <span class="px-2 py-1 rounded bg-gray-800">Brain: <b x-text="brainReady ? 'READY' : 'BOOTING'"></b></span>
+        <span class="px-2 py-1 rounded bg-gray-800">Codepad: <b x-text="codepadReady ? 'READY' : 'BOOTING'"></b></span>
+      </div>
+    </header>
+
+    <section class="grid grid-cols-12 gap-4">
+      <!-- LEFT: controls -->
+      <div class="col-span-5 bg-gray-900 rounded p-3 space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="text-sm font-semibold">Memory Capture</div>
+          <div class="text-xs text-muted">Persistent across reloads</div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <button class="px-3 py-2 rounded bg-emerald-600 hover:bg-emerald-500" @click="captureBrainSnapshot()">
+            Capture Brain Snapshot
+          </button>
+
+          <button class="px-3 py-2 rounded bg-sky-600 hover:bg-sky-500" @click="spawnDemo()">
+            Spawn Demo Entities
+          </button>
+
+          <button class="px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500" @click="refreshBrainState()">
+            Pull Brain State
+          </button>
+
+          <button class="px-3 py-2 rounded bg-amber-600 hover:bg-amber-500" @click="exportMemories()">
+            Export Memories (JSON)
+          </button>
+
+          <label class="col-span-2 px-3 py-2 rounded bg-gray-800 hover:bg-gray-700 cursor-pointer text-center">
+            Import Memories (JSON)
+            <input type="file" class="hidden" accept="application/json" @change="importMemories($event)" />
+          </label>
+        </div>
+
+        <hr class="border-gray-700">
+
+        <div class="text-sm font-semibold">Create a Memory</div>
+        <div class="space-y-2 text-xs">
+          <div class="grid grid-cols-2 gap-2">
+            <input class="p-2 rounded bg-gray-800" placeholder="type (note | plan | code | snapshot)"
+              x-model="newMem.type">
+            <input class="p-2 rounded bg-gray-800" placeholder="title" x-model="newMem.title">
+          </div>
+          <textarea class="p-2 rounded bg-gray-800 w-full h-24" placeholder="text" x-model="newMem.text"></textarea>
+          <input class="p-2 rounded bg-gray-800 w-full" placeholder="tags (comma separated)" x-model="newMem.tagsCsv">
+          <button class="px-3 py-2 rounded bg-lime-600 text-black hover:bg-lime-500" @click="createMemory()">
+            Save Memory
+          </button>
+        </div>
+
+        <hr class="border-gray-700">
+
+        <div class="text-sm font-semibold">Search</div>
+        <div class="space-y-2 text-xs">
+          <input class="p-2 rounded bg-gray-800 w-full" placeholder="search query..." x-model="search.q"
+            @input.debounce.150ms="runSearch()">
+          <div class="grid grid-cols-2 gap-2">
+            <input class="p-2 rounded bg-gray-800" placeholder="filter type (optional)" x-model="search.type"
+              @input.debounce.150ms="runSearch()">
+            <input class="p-2 rounded bg-gray-800" placeholder="filter tag (optional)" x-model="search.tag"
+              @input.debounce.150ms="runSearch()">
+          </div>
+          <div class="text-xs text-muted">
+            Results: <b x-text="results.length"></b>
+          </div>
+        </div>
+
+        <hr class="border-gray-700">
+
+        <div class="text-sm font-semibold">Console</div>
+        <pre class="bg-gray-950 rounded p-2 text-xs h-40 overflow-auto" x-text="consoleText"></pre>
+      </div>
+
+      <!-- RIGHT: results + viewer + codepad -->
+      <div class="col-span-7 space-y-4">
+        <div class="bg-gray-900 rounded p-3">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-sm font-semibold">Memories</div>
+            <div class="text-xs text-muted">Click to view</div>
+          </div>
+          <div class="h-56 overflow-auto space-y-2">
+            <template x-if="results.length === 0">
+              <div class="text-muted text-xs">No memories yet. Create one or capture a snapshot.</div>
+            </template>
+
+            <template x-for="m in results" :key="m.id">
+              <div class="p-2 rounded bg-gray-800 hover:bg-gray-700 cursor-pointer" @click="openMemory(m.id)">
+                <div class="flex items-center justify-between">
+                  <div class="text-xs">
+                    <span class="px-2 py-0.5 rounded bg-gray-900 text-muted mr-2" x-text="m.type"></span>
+                    <b x-text="m.title || '(untitled)'"></b>
+                  </div>
+                  <div class="text-[11px] text-muted" x-text="new Date(m.createdAt).toLocaleString()"></div>
+                </div>
+                <div class="text-[11px] text-muted mt-1 truncate" x-text="m.preview"></div>
+                <div class="text-[11px] text-muted mt-1"
+                  x-text="(m.tags && m.tags.length) ? ('tags: ' + m.tags.join(', ')) : ''"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div class="bg-gray-900 rounded p-3">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-sm font-semibold">Viewer</div>
+            <div class="flex items-center gap-2 text-xs">
+              <button class="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600" @click="copyViewer()"
+                :disabled="!activeMemory">
+                Copy
+              </button>
+              <button class="px-2 py-1 rounded bg-red-600 hover:bg-red-500" @click="deleteActive()"
+                :disabled="!activeMemory">
+                Delete
+              </button>
+            </div>
+          </div>
+
+          <template x-if="!activeMemory">
+            <div class="text-muted text-xs">Select a memory to view it.</div>
+          </template>
+
+          <template x-if="activeMemory">
+            <div class="space-y-2">
+              <div class="text-xs">
+                <span class="px-2 py-0.5 rounded bg-gray-800 text-muted" x-text="activeMemory.type"></span>
+                <span class="ml-2 text-muted" x-text="'id: ' + activeMemory.id"></span>
+              </div>
+              <div class="text-sm font-semibold" x-text="activeMemory.title || '(untitled)'"></div>
+              <div class="text-xs text-muted" x-text="new Date(activeMemory.createdAt).toLocaleString()"></div>
+              <div class="text-xs text-muted"
+                x-text="(activeMemory.tags && activeMemory.tags.length) ? ('tags: ' + activeMemory.tags.join(', ')) : ''">
+              </div>
+              <pre class="bg-gray-950 rounded p-2 text-xs h-48 overflow-auto" x-text="activeMemory.text"></pre>
+
+              <template x-if="activeMemory.type === 'snapshot' && activeMemory.meta && activeMemory.meta.brainState">
+                <div class="text-xs">
+                  <button class="px-3 py-2 rounded bg-emerald-600 hover:bg-emerald-500"
+                    @click="restoreBrainFromSnapshot(activeMemory)">
+                    Restore Brain From Snapshot
+                  </button>
+                  <span class="text-muted ml-2">Restores entities & tick state</span>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+
+        <div class="bg-gray-900 rounded p-3">
+          <div class="text-sm font-semibold mb-2">Codepad (Sandbox)</div>
+          <textarea class="w-full h-32 p-2 rounded bg-gray-800 text-xs" x-model="code" placeholder="// Example:
+// const s = await API.brain.getState();
+// console.log('brain entities', Object.keys(s.entities||{}).length);
+// await API.mem.put({ type:'note', title:'hello', text:'saved from codepad', tags:['codepad'] });"></textarea>
+          <div class="flex items-center gap-2 mt-2 text-xs">
+            <button class="px-3 py-2 rounded bg-sky-600 hover:bg-sky-500" @click="runCodepad()">Run</button>
+            <button class="px-3 py-2 rounded bg-yellow-600 hover:bg-yellow-500" @click="resetCodepad()">Reset</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- hidden iframes -->
+    <iframe id="brainFrame" title="brain-sandbox" sandbox="allow-scripts" class="hidden"></iframe>
+    <iframe id="codepadFrame" title="codepad-sandbox" sandbox="allow-scripts" class="hidden"></iframe>
+  </main>
+
+  <script>
+    // ----------------------------
+    // Utilities
+    // ----------------------------
+    const uid = () => 'id_' + Math.random().toString(16).slice(2) + '_' + Date.now().toString(16);
+    const now = () => Date.now();
+
+    function safeJsonParse(s) {
+      try { return JSON.parse(s); } catch { return null; }
+    }
+
+    // ----------------------------
+    // IndexedDB Memory Vault (Parent-owned)
+    // ----------------------------
+    function openVaultDb() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open('nexus_memory_vault', 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          const store = db.createObjectStore('memories', { keyPath: 'id' });
+          store.createIndex('createdAt', 'createdAt');
+          store.createIndex('type', 'type');
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function vaultPut(db, mem) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('memories', 'readwrite');
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error);
+        tx.objectStore('memories').put(mem);
+      });
+    }
+
+    async function vaultGet(db, id) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('memories', 'readonly');
+        const req = tx.objectStore('memories').get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function vaultDelete(db, id) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('memories', 'readwrite');
+        const req = tx.objectStore('memories').delete(id);
+        req.onsuccess = () => resolve(true);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function vaultAll(db) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('memories', 'readonly');
+        const req = tx.objectStore('memories').getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function normalizeText(s) {
+      return String(s || '').toLowerCase();
+    }
+
+    function tokenize(s) {
+      return normalizeText(s).split(/[^a-z0-9_]+/g).filter(Boolean);
+    }
+
+    function matchesQuery(mem, qTokens) {
+      if (!qTokens.length) return true;
+      const hay = tokenize([mem.type, mem.title, mem.text, (mem.tags || []).join(' ')].join(' '));
+      const set = new Set(hay);
+      for (const t of qTokens) if (!set.has(t)) return false;
+      return true;
+    }
+
+    // ----------------------------
+    // Brain sandbox srcdoc
+    // ----------------------------
+    function brainSrcdoc() {
+      return String.raw`<!doctype html><html><body><script>
+(() => {
+  const send = (kind, payload, replyTo) => parent.postMessage({ __nexus: true, from: 'brain', kind, payload, replyTo }, '*');
+
+  // Minimal "brain world"
+  const world = {
+    tick: 0,
+    nextId: 1,
+    entities: {}
+  };
+
+  function addEntity(type, props = {}) {
+    const id = world.nextId++;
+    world.entities[id] = {
+      id,
+      type: String(type || 'entity'),
+      x: Number(props.x || 0),
+      y: Number(props.y || 0),
+      vx: Number(props.vx || 0),
+      vy: Number(props.vy || 0),
+      health: Number(props.health || 0),
+      size: Number(props.size || 8)
+    };
+    return world.entities[id];
+  }
+
+  function step(dt) {
+    world.tick++;
+    const d = Number(dt || 1);
+    for (const id of Object.keys(world.entities)) {
+      const e = world.entities[id];
+      e.x += e.vx * d;
+      e.y += e.vy * d;
+    }
+    return { tick: world.tick, entities: world.entities };
+  }
+
+  function getState() {
+    // deep clone for safety
+    return { tick: world.tick, nextId: world.nextId, entities: JSON.parse(JSON.stringify(world.entities)) };
+  }
+
+  function restoreState(state) {
+    if (!state || typeof state !== 'object') throw new Error('invalid state');
+    if (!state.entities || typeof state.entities !== 'object') throw new Error('missing entities');
+    world.tick = Number(state.tick || 0);
+    world.nextId = Number(state.nextId || 1);
+    world.entities = JSON.parse(JSON.stringify(state.entities));
+    return true;
+  }
+
+  // Seed demo
+  addEntity('player', { x: 10, y: 20, health: 100, vx: 0.2 });
+  addEntity('orc', { x: 80, y: 40, health: 35, vx: -0.1 });
+
+  const OPS = {
+    ping: () => ({ ok: true }),
+    getState: () => ({ ok: true, value: getState() }),
+    step: (args) => ({ ok: true, value: step((args && args[0]) || 1) }),
+    spawn: (args) => {
+      const type = args && args[0];
+      const props = (args && args[1]) || {};
+      const e = addEntity(type, props);
+      return { ok: true, value: e };
+    },
+    restore: (args) => {
+      const state = args && args[0];
+      restoreState(state);
+      return { ok: true, value: true };
+    }
+  };
+
+  window.addEventListener('message', (e) => {
+    const m = e.data;
+    if (!m || !m.__nexus) return;
+    if (m.to !== 'brain') return;
+    if (m.kind !== 'OP') return;
+
+    const reqId = m.reqId;
+    const op = m.payload && m.payload.op;
+    const args = m.payload && m.payload.args;
+
+    try {
+      const fn = OPS[op];
+      const res = fn ? fn(args) : ({ ok:false, error:'NO_SUCH_OP' });
+      send('REPLY', { op, res }, reqId);
+    } catch (err) {
+      send('REPLY', { op, res: { ok:false, error:String(err && err.message || err) } }, reqId);
+    }
+  });
+
+  // Tick heartbeat (optional)
+  setInterval(() => {
+    try { step(1); send('TICK', { tick: world.tick }); } catch {}
+  }, 1000);
+
+  send('READY', { ok: true, note: 'brain booted' });
+})();
+</scr` + `ipt></body></html>`;
+    }
+
+    // ----------------------------
+    // Codepad sandbox srcdoc
+    // ----------------------------
+    function codepadSrcdoc() {
+      return String.raw`<!doctype html><html><body><script>
+(() => {
+  const send = (kind, payload, replyTo) => parent.postMessage({ __nexus: true, from: 'codepad', kind, payload, replyTo }, '*');
+
+  // API exposed to user code
+  const API = {
+    brain: {
+      op(op, args = []) {
+        const reqId = 'cp_' + Math.random().toString(16).slice(2);
+        return new Promise((resolve) => {
+          const onReply = (ev) => {
+            const m = ev.data;
+            if (!m || !m.__nexus) return;
+            if (m.from !== 'parent') return;
+            if (m.kind !== 'BRAIN_REPLY') return;
+            if (m.replyTo !== reqId) return;
+            window.removeEventListener('message', onReply);
+            resolve(m.payload);
+          };
+          window.addEventListener('message', onReply);
+          send('EXEC_BRAIN', { op, args }, reqId);
+          setTimeout(() => { window.removeEventListener('message', onReply); resolve({ ok:false, error:'TIMEOUT' }); }, 1500);
+        });
+      },
+      async getState() {
+        const r = await this.op('getState', []);
+        return (r && r.ok && r.value) ? r.value : null;
+      }
+    },
+    mem: {
+      put(mem) {
+        const reqId = 'mem_' + Math.random().toString(16).slice(2);
+        return new Promise((resolve) => {
+          const onReply = (ev) => {
+            const m = ev.data;
+            if (!m || !m.__nexus) return;
+            if (m.from !== 'parent') return;
+            if (m.kind !== 'MEM_REPLY') return;
+            if (m.replyTo !== reqId) return;
+            window.removeEventListener('message', onReply);
+            resolve(m.payload);
+          };
+          window.addEventListener('message', onReply);
+          send('EXEC_MEM', { op:'put', args:[mem] }, reqId);
+          setTimeout(() => { window.removeEventListener('message', onReply); resolve({ ok:false, error:'TIMEOUT' }); }, 1500);
+        });
+      }
+    },
+    console: {
+      log(...args){ send('CONSOLE', { text: args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ') }); }
+    }
+  };
+
+  window.addEventListener('message', (e) => {
+    const m = e.data;
+    if (!m || !m.__nexus) return;
+    if (m.to !== 'codepad') return;
+    if (m.kind === 'RUN') {
+      const code = (m.payload && m.payload.code) || '';
+      (async () => {
+        try {
+          const fn = new Function('API', 'console', '"use strict"; return (async () => {\n' + code + '\n})();');
+          const consoleProxy = { log: (...a) => API.console.log(...a) };
+          await fn(API, consoleProxy);
+          send('CONSOLE', { text: '[CODEPAD] done' });
+        } catch (err) {
+          send('CONSOLE', { text: '[CODEPAD] error: ' + String(err && err.message || err) });
+        }
+      })();
+    }
+  });
+
+  send('READY', { ok:true, note:'codepad booted' });
+})();
+</scr` + `ipt></body></html>`;
+    }
+
+    // ----------------------------
+    // Parent App
+    // ----------------------------
+    function NEXUS_MEMORY() {
+      return {
+        // runtime
+        db: null,
+        brainFrame: null,
+        codepadFrame: null,
+        brainReady: false,
+        codepadReady: false,
+        brainMode: 'relay', // 'relay' (real Brain WS relay) | 'sandbox' (iframe brainSrcdoc)
+        relay: {
+          wsUrl: 'ws://localhost:9000',
+          ws: null,
+          status: 'disconnected',
+          sessionId: null,
+          lastSnapshot: null,
+          pending: [],
+          retry: { attempt: 0, timer: null }
+        },
+        consoleText: '',
+
+        // codepad
+        code: localStorage.getItem('nexus_codepad_code') || `// Example:
+const s = await API.brain.getState();
+console.log('brain tick', s?.tick);
+console.log('entity ids', Object.keys(s?.entities||{}));
+await API.mem.put({ type:'note', title:'Saved from codepad', text:'This was created by code in the sandbox.', tags:['codepad','demo'] });`,
+
+        // memory UI
+        newMem: { type: 'note', title: '', text: '' },
+        newMemTags: [],
+        newMemTagsCsv: '',
+        search: { q: '', type: '', tag: '' },
+        results: [],
+        activeMemory: null,
+
+        // init
+        async init() {
+          this.append('[INIT] opening vault…');
+          this.db = await openVaultDb();
+          this.append('[INIT] vault ready');
+
+          this.brainFrame = document.getElementById('brainFrame');
+          this.codepadFrame = document.getElementById('codepadFrame');
+          this.codepadFrame.srcdoc = codepadSrcdoc();
+
+          window.addEventListener('message', (e) => this.onMessage(e));
+
+          // Prefer the real Brain relay; fall back to sandbox brain if relay is unavailable.
+          this.connectRelay();
+          await this.runSearch();
+        },
+
+        append(t) {
+          this.consoleText = (this.consoleText + '\n' + '[' + new Date().toLocaleTimeString() + '] ' + t).trim();
+        },
+
+        // Messaging
+        handleSandboxBrainMessage(m) {
+          // Sandbox brain iframe messages only.
+          if (m.kind === 'READY') {
+            this.brainReady = true;
+            this.append('[BRAIN] ready');
+            return true;
+          }
+          if (m.kind === 'TICK') return true; // optional
+          if (m.kind === 'REPLY') return true; // handled by pending brain calls
+          return false;
+        },
+
+        handleCodepadMessage(m) {
+          if (m.kind === 'READY') {
+            this.codepadReady = true;
+            this.append('[CODEPAD] ready');
+            return true;
+          }
+          if (m.kind === 'CONSOLE') {
+            this.append(m.payload && m.payload.text ? m.payload.text : '[CODEPAD]');
+            return true;
+          }
+          if (m.kind === 'EXEC_BRAIN') {
+            const reqId = m.replyTo;
+            const { op, args } = m.payload || {};
+            this.brainOp(op, args || []).then((res) => {
+              this.codepadFrame.contentWindow.postMessage(
+                { __nexus: true, from: 'parent', to: 'codepad', kind: 'BRAIN_REPLY', payload: res, replyTo: reqId },
+                '*'
+              );
+            });
+            return true;
+          }
+          if (m.kind === 'EXEC_MEM') {
+            const reqId = m.replyTo;
+            const { op, args } = m.payload || {};
+            this.memOp(op, args || []).then((res) => {
+              this.codepadFrame.contentWindow.postMessage(
+                { __nexus: true, from: 'parent', to: 'codepad', kind: 'MEM_REPLY', payload: res, replyTo: reqId },
+                '*'
+              );
+            });
+            return true;
+          }
+          return false;
+        },
+
+        onMessage(e) {
+          const m = e.data;
+          if (!m || !m.__nexus) return;
+          if (m.from === 'brain') { this.handleSandboxBrainMessage(m); return; }
+          if (m.from === 'codepad') { this.handleCodepadMessage(m); }
+        },
+
+        // ----------------------------
+        // Real Brain relay (WebSocket)
+        // ----------------------------
+        relaySend(obj) {
+          const ws = this.relay.ws;
+          if (!ws || ws.readyState !== WebSocket.OPEN) return false;
+          try {
+            ws.send(JSON.stringify(obj));
+            return true;
+          } catch {
+            return false;
+          }
+        },
+
+        scheduleRelayReconnect() {
+          if (this.relay.retry.timer) return;
+          this.relay.retry.attempt += 1;
+          const attempt = this.relay.retry.attempt;
+          const delayMs = Math.min(5000, 250 * Math.pow(1.6, attempt));
+          this.relay.retry.timer = setTimeout(() => {
+            this.relay.retry.timer = null;
+            this.connectRelay();
+          }, delayMs);
+        },
+
+        connectRelay() {
+          // If already connected/connecting, don't create a second socket.
+          const existing = this.relay.ws;
+          if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) return;
+
+          this.brainMode = 'relay';
+          this.relay.status = 'connecting';
+          this.relay.lastSnapshot = this.relay.lastSnapshot || null;
+
+          let ws;
+          try {
+            ws = new WebSocket(this.relay.wsUrl);
+          } catch (e) {
+            this.relay.status = 'disconnected';
+            const detail = (e && e.message) ? String(e.message) : String(e);
+            this.append('[BRAIN] relay ws construct failed; falling back to sandbox' + (detail ? (': ' + detail) : ''));
+            this.useSandboxBrain();
+            return;
+          }
+
+          this.relay.ws = ws;
+
+          ws.onopen = () => {
+            this.relay.retry.attempt = 0;
+            this.relay.status = 'connected';
+            this.append('[BRAIN] relay connected');
+            this.relaySend({ cmd: 'CreateSession', owner: 'nexus-memory' });
+          };
+
+          ws.onmessage = (evt) => {
+            const msg = safeJsonParse(evt.data);
+            if (!msg || typeof msg !== 'object') return;
+
+            if (msg.type === 'SessionCreated' && typeof msg.session_id === 'string') {
+              this.relay.sessionId = msg.session_id;
+              this.brainReady = true;
+              this.append('[BRAIN] relay session ' + msg.session_id);
+            }
+
+            if (msg.type === 'State.Snapshot' && msg.state && typeof msg.state === 'object') {
+              this.relay.lastSnapshot = msg.state;
+              // Resolve the oldest pending applyOperator promise (best-effort ordering).
+              const pending = this.relay.pending.shift();
+              if (pending && pending.resolve) pending.resolve(msg.state);
+            }
+          };
+
+          ws.onerror = () => {
+            // Most browsers do not provide useful details.
+            this.append('[BRAIN] relay ws error');
+          };
+
+          ws.onclose = () => {
+            this.relay.status = 'disconnected';
+            this.relay.sessionId = null;
+            this.brainReady = false;
+            this.append('[BRAIN] relay disconnected; will retry');
+            this.scheduleRelayReconnect();
+          };
+
+          // If we can't establish a session quickly, fall back to sandbox.
+          setTimeout(() => {
+            if (this.brainMode !== 'relay') return;
+            if (this.relay.sessionId) return;
+            if (this.relay.status !== 'connected') return;
+            this.append('[BRAIN] relay session not ready; falling back to sandbox');
+            try { ws.close(); } catch { }
+            this.useSandboxBrain();
+          }, 1200);
+        },
+
+        useSandboxBrain() {
+          this.brainMode = 'sandbox';
+          this.brainReady = false;
+          try {
+            if (this.relay.ws) {
+              try { this.relay.ws.onopen = null; this.relay.ws.onclose = null; this.relay.ws.onerror = null; this.relay.ws.onmessage = null; } catch { }
+              try { this.relay.ws.close(); } catch { }
+            }
+          } catch { }
+          this.relay.ws = null;
+          this.relay.status = 'disconnected';
+          this.relay.sessionId = null;
+          this.relay.lastSnapshot = null;
+
+          // Boot the iframe brain.
+          try { this.brainFrame.srcdoc = brainSrcdoc(); } catch { }
+        },
+
+        relayApplyOperator(operator, params) {
+          if (!this.relay.sessionId) return Promise.resolve({ ok: false, error: 'NO_SESSION' });
+          if (typeof operator !== 'string' || !operator) return Promise.resolve({ ok: false, error: 'BAD_OPERATOR' });
+          const p = (params && typeof params === 'object') ? params : {};
+
+          return new Promise((resolve) => {
+            const resolver = (state) => resolve({ ok: true, value: state });
+            this.relay.pending.push({ resolve: resolver });
+
+            const sent = this.relaySend({ cmd: 'ApplyOperator', session_id: this.relay.sessionId, operator, params: p });
+            if (!sent) {
+              this.relay.pending.pop();
+              resolve({ ok: false, error: 'WS_NOT_READY' });
+              return;
+            }
+
+            setTimeout(() => {
+              let idx = -1;
+              for (let i = 0; i < this.relay.pending.length; i++) {
+                const x = this.relay.pending[i];
+                if (x && x.resolve === resolver) { idx = i; break; }
+              }
+              if (idx >= 0) this.relay.pending.splice(idx, 1);
+              resolve({ ok: false, error: 'TIMEOUT' });
+            }, 1500);
+          });
+        },
+
+        brainOpRelay(op, args) {
+          const opName = String(op || '');
+          const a = Array.isArray(args) ? args : [];
+
+          if (opName === 'ping') return Promise.resolve({ ok: true, value: { status: this.relay.status } });
+          if (opName === 'getState') return Promise.resolve({ ok: true, value: this.relay.lastSnapshot });
+          if (opName === 'applyOperator') return this.relayApplyOperator(a[0], a[1]);
+          return Promise.resolve({ ok: false, error: 'UNSUPPORTED_OP' });
+        },
+
+        brainOpSandbox(op, args) {
+          const reqId = uid();
+          return new Promise((resolve) => {
+            const onReply = (ev) => {
+              const m = ev.data;
+              if (!m || !m.__nexus) return;
+              if (m.from !== 'brain') return;
+              if (m.kind !== 'REPLY') return;
+              if (m.replyTo !== reqId) return;
+              window.removeEventListener('message', onReply);
+              const payload = m.payload || {};
+              const res = payload.res || { ok: false, error: 'BAD_REPLY' };
+              resolve(res.ok ? res.value : res);
+            };
+            window.addEventListener('message', onReply);
+
+            try {
+              this.brainFrame.contentWindow.postMessage(
+                { __nexus: true, to: 'brain', kind: 'OP', payload: { op, args }, reqId },
+                '*'
+              );
+            } catch (err) {
+              window.removeEventListener('message', onReply);
+              resolve({ ok: false, error: String(err && err.message || err) });
+              return;
+            }
+
+            setTimeout(() => {
+              window.removeEventListener('message', onReply);
+              resolve({ ok: false, error: 'TIMEOUT' });
+            }, 1500);
+          });
+        },
+
+        brainOp(op, args) {
+          return this.brainMode === 'relay' ? this.brainOpRelay(op, args) : this.brainOpSandbox(op, args);
+        },
+
+        // Memory ops (parent-owned)
+        async memOp(op, args) {
+          try {
+            if (op === 'put') {
+              const input = (args && args[0]) || {};
+              const mem = this.normalizeMemoryInput(input);
+              await vaultPut(this.db, mem);
+              await this.runSearch();
+              return { ok: true, value: mem.id };
+            }
+            return { ok: false, error: 'NO_SUCH_MEM_OP' };
+          } catch (e) {
+            return { ok: false, error: String(e && e.message || e) };
+          }
+        },
+
+        normalizeMemoryInput(input) {
+          const type = String(input.type || 'note');
+          const title = String(input.title || '');
+          const text = String(input.text || '');
+          const tags = Array.isArray(input.tags) ? input.tags.map(t => String(t).trim()).filter(Boolean) : [];
+          const refs = Array.isArray(input.refs) ? input.refs : [];
+          const meta = (input.meta && typeof input.meta === 'object') ? input.meta : {};
+          return {
+            id: input.id || uid(),
+            type,
+            title,
+            text,
+            tags,
+            refs,
+            meta,
+            createdAt: input.createdAt || now(),
+            updatedAt: now(),
+            preview: (text || '').slice(0, 140)
+          };
+        },
+
+        // UI actions
+        async createMemory() {
+          const tags = String(this.newMem.tagsCsv || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+
+          const mem = this.normalizeMemoryInput({
+            type: this.newMem.type,
+            title: this.newMem.title,
+            text: this.newMem.text,
+            tags
+          });
+
+          await vaultPut(this.db, mem);
+          this.append('[MEM] saved ' + mem.id);
+          this.newMem.title = '';
+          this.newMem.text = '';
+          this.newMem.tagsCsv = '';
+          await this.runSearch();
+        },
+
+        async runSearch() {
+          const all = await vaultAll(this.db);
+          const qTokens = tokenize(this.search.q || '');
+          const typeFilter = String(this.search.type || '').trim().toLowerCase();
+          const tagFilter = String(this.search.tag || '').trim().toLowerCase();
+
+          let out = all.filter(m => matchesQuery(m, qTokens));
+          if (typeFilter) out = out.filter(m => String(m.type || '').toLowerCase() === typeFilter);
+          if (tagFilter) out = out.filter(m => (m.tags || []).map(t => String(t).toLowerCase()).includes(tagFilter));
+
+          out.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          this.results = out.slice(0, 300);
+          // if active deleted, clear
+          if (this.activeMemory && !this.results.some(x => x.id === this.activeMemory.id)) {
+            const still = await vaultGet(this.db, this.activeMemory.id);
+            if (!still) this.activeMemory = null;
+          }
+        },
+
+        async openMemory(id) {
+          const mem = await vaultGet(this.db, id);
+          this.activeMemory = mem;
+          this.append('[MEM] opened ' + id);
+        },
+
+        async deleteActive() {
+          if (!this.activeMemory) return;
+          const id = this.activeMemory.id;
+          if (!confirm('Delete memory ' + id + '?')) return;
+          await vaultDelete(this.db, id);
+          this.activeMemory = null;
+          this.append('[MEM] deleted ' + id);
+          await this.runSearch();
+        },
+
+        async copyViewer() {
+          if (!this.activeMemory) return;
+          const payload = JSON.stringify(this.activeMemory, null, 2);
+          await navigator.clipboard.writeText(payload);
+          this.append('[UI] copied memory JSON');
+        },
+
+        // Brain controls
+        async refreshBrainState() {
+          if (this.brainMode === 'relay') {
+            const snap = await this.brainOp('applyOperator', ['ST', { changes: { tick: Date.now() } }]);
+            const state = (snap && snap.ok && snap.value) ? snap.value : (this.relay.lastSnapshot || null);
+            if (state) this.append('[BRAIN] relay snapshot received');
+            else this.append('[BRAIN] relay snapshot not available');
+            return;
+          }
+
+          const s = await this.brainOp('getState', []);
+          if (s && s.entities) this.append('[BRAIN] state pulled: entities=' + Object.keys(s.entities).length + ' tick=' + s.tick);
+          else this.append('[BRAIN] failed to pull state');
+        },
+
+        async spawnDemo() {
+          if (this.brainMode === 'relay') {
+            this.append('[BRAIN] spawnDemo is sandbox-only');
+            return;
+          }
+          await this.brainOp('spawn', ['orb', { x: Math.random() * 200, y: Math.random() * 120, vx: 0.15, vy: 0.05, health: 1, size: 6 }]);
+          await this.brainOp('spawn', ['orb', { x: Math.random() * 200, y: Math.random() * 120, vx: -0.08, vy: 0.09, health: 1, size: 6 }]);
+          this.append('[BRAIN] spawned demo');
+        },
+
+        async captureBrainSnapshot() {
+          const s = this.brainMode === 'relay' ? (this.relay.lastSnapshot || null) : await this.brainOp('getState', []);
+          if (!s) { this.append('[SNAP] failed: no brain state'); return; }
+
+          const entityCount = (s && s.entities && typeof s.entities === 'object') ? Object.keys(s.entities).length : 0;
+          const mem = this.normalizeMemoryInput({
+            type: 'snapshot',
+            title: 'Brain Snapshot' + ((s && s.tick !== undefined) ? (' @ tick ' + s.tick) : ''),
+            text: 'Captured brain state' + (entityCount ? (' with ' + entityCount + ' entities') : '') + '.',
+            tags: ['snapshot', 'brain'],
+            meta: { brainState: s }
+          });
+
+          await vaultPut(this.db, mem);
+          this.append('[SNAP] saved ' + mem.id + ' entities=' + entityCount);
+          await this.runSearch();
+        },
+
+        async restoreBrainFromSnapshot(mem) {
+          try {
+            if (!mem || !mem.meta || !mem.meta.brainState) return;
+            if (this.brainMode === 'relay') {
+              this.append('[BRAIN] restore is not supported on relay');
+              return;
+            }
+            if (!confirm('Restore brain from this snapshot? This overwrites current brain state.')) return;
+            const ok = await this.brainOp('restore', [mem.meta.brainState]);
+            if (ok === true) this.append('[BRAIN] restored from snapshot');
+            else this.append('[BRAIN] restore failed: ' + JSON.stringify(ok));
+          } catch (e) {
+            this.append('[BRAIN] restore exception: ' + String(e && e.message || e));
+          }
+        },
+
+        // Export/Import
+        async exportMemories() {
+          const all = await vaultAll(this.db);
+          const blob = new Blob([JSON.stringify({ exportedAt: now(), memories: all }, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'nexus-memories-' + Date.now() + '.json';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          this.append('[MEM] exported ' + all.length + ' memories');
+        },
+
+        async importMemories(ev) {
+          const file = ev.target.files && ev.target.files[0];
+          if (!file) return;
+          const text = await file.text();
+          const json = safeJsonParse(text);
+          if (!json || !Array.isArray(json.memories)) { this.append('[MEM] import failed: invalid JSON'); return; }
+
+          const memories = json.memories.map(m => this.normalizeMemoryInput(m));
+          for (const m of memories) await vaultPut(this.db, m);
+
+          this.append('[MEM] imported ' + memories.length + ' memories');
+          ev.target.value = '';
+          await this.runSearch();
+        },
+
+        // Codepad
+        runCodepad() {
+          localStorage.setItem('nexus_codepad_code', this.code);
+          this.codepadFrame.contentWindow.postMessage({ __nexus: true, to: 'codepad', kind: 'RUN', payload: { code: this.code } }, '*');
+          this.append('[CODEPAD] run');
+        },
+
+        resetCodepad() {
+          this.codepadFrame.srcdoc = codepadSrcdoc();
+          this.append('[CODEPAD] reset');
+        }
+      };
+    }
+  </script>
+</body>
+
+</html>

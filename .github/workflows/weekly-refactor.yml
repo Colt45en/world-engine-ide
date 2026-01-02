@@ -1,0 +1,47 @@
+name: Weekly Refactor
+
+on:
+  schedule:
+    # GitHub cron is UTC. This is 06:00 America/Chicago during CST (UTC-6).
+    # It will shift by an hour during DST.
+    - cron: '0 12 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refactor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install
+        run: npm ci
+
+      # Safe mechanical refactor only: format + lint autofix
+      - name: Safe refactor
+        run: |
+          npm run format:write
+          npm run lint:fix
+
+      - name: Create PR if changed
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: 'chore: weekly safe refactor'
+          title: 'chore: weekly safe refactor'
+          body: |
+            Automated formatting + ESLint autofix.
+
+            - Command: npm run format:write && npm run lint:fix
+            - Expected: no behavioral changes
+          branch: 'automation/weekly-refactor'
+          delete-branch: true

@@ -1,0 +1,15 @@
+# Dockerfile for Node (frontend + orchestrator)
+FROM node:20-bullseye
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --silent
+
+COPY . /app
+
+# Expose Vite default dev port
+EXPOSE 5173
+
+# Default command for frontend (dev server)
+CMD ["npm", "run", "dev"]

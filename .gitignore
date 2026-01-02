@@ -1,0 +1,33 @@
+node_modules/
+
+# Python bytecode / caches
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# JS/TS build outputs
+dist/
+build/
+
+# Reports and generated feeds
+hint-report/
+public/webhint-feed.json
+
+# Local artifacts
+artifacts/
+*.sqlite
+*.sqlite3
+
+# Engine build outputs (native/wasm)
+engine/dist/
+engine/native/build/
+engine/wasm/out/
+engine/wasm/out*/
+
+# Logs
+*.log
+
+# Accidental exports
+.github/*.html
+.github/*.htm

@@ -1,0 +1,47 @@
+[
+  {
+    "op": "safeDiv",
+    "args": [10, 2],
+    "res": {
+      "ok": true,
+      "value": 5.0
+    },
+    "text": "10 / 2"
+  },
+  {
+    "op": "safeDiv",
+    "args": [9, 3],
+    "res": {
+      "ok": true,
+      "value": 3.0
+    },
+    "text": "9 / 3"
+  },
+  {
+    "op": "safeDiv",
+    "args": [6, 3],
+    "res": {
+      "ok": true,
+      "value": 2.0
+    },
+    "text": "6 / 3"
+  },
+  {
+    "op": "safeDiv",
+    "args": [7, 2],
+    "res": {
+      "ok": true,
+      "value": 3.5
+    },
+    "text": "7 / 2"
+  },
+  {
+    "op": "safeDiv",
+    "args": [0.5, 0.2],
+    "res": {
+      "ok": true,
+      "value": 2.5
+    },
+    "text": "0.5 / 0.2"
+  }
+]

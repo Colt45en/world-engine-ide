@@ -1,0 +1,36 @@
+version: 2
+updates:
+  # Node / npm dependencies (root package.json)
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'America/Chicago'
+    open-pull-requests-limit: 5
+    versioning-strategy: 'increase-if-necessary'
+    commit-message:
+      prefix: 'deps'
+    groups:
+      # Keep PR count low: group patch/minor updates together
+      node-patch-minor:
+        update-types:
+          - 'patch'
+          - 'minor'
+    ignore:
+      # Reduce churn on majors; you can remove these later if you want majors too
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
+  # Python deps for brain/ (requirements files)
+  - package-ecosystem: 'pip'
+    directory: '/brain'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:30'
+      timezone: 'America/Chicago'
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: 'deps(brain)'

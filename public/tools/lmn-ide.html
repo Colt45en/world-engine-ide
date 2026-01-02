@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LMN World Engine • Brain AI Build</title>
+  <style>
+    :root {
+      --bg: #030508;
+      --panel: #0b1220;
+      --border: rgba(56, 189, 248, .15);
+      --text: #e5e7eb;
+      --muted: #64748b;
+      --accent: #38bdf8;
+      --tab-inactive: rgba(255, 255, 255, 0.03);
+      --tab-active: rgba(56, 189, 248, 0.1);
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      margin: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column
+    }
+
+    /* Layout */
+    .topbar {
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(3, 7, 18, 0.9)
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--accent);
+      text-transform: uppercase;
+      font-size: 14px
+    }
+
+    .status-pulse {
+      width: 8px;
+      height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent)
+    }
+
+    .workspace {
+      flex: 1;
+      display: flex;
+      overflow: hidden
+    }
+
+    .sidebar {
+      width: 260px;
+      border-right: 1px solid var(--border);
+      background: rgba(11, 18, 32, 0.4);
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      gap: 12px;
+      overflow-y: auto
+    }
+
+    .main-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0
+    }
+
+    /* Editor Tabs */
+    .tab-bar {
+      display: flex;
+      background: #0f172a;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .tab {
+      padding: 10px 16px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--muted);
+      border-right: 1px solid rgba(255, 255, 255, 0.05);
+      transition: all 0.2s
+    }
+
+    .tab:hover {
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--text)
+    }
+
+    .tab.active {
+      background: var(--tab-active);
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent)
+    }
+
+    /* Editors */
+    .editor-container {
+      flex: 1;
+      position: relative;
+      background: #050914
+    }
+
+    .code-editor {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      padding: 16px;
+      resize: none;
+      outline: none;
+      font-family: inherit;
+      font-size: 13px;
+      line-height: 1.5;
+      display: none
+    }
+
+    .code-editor.active {
+      display: block
+    }
+
+    /* Brain View (Bottom Panel) */
+    .brain-panel {
+      height: 200px;
+      border-top: 1px solid var(--border);
+      background: #02040a;
+      display: flex;
+      flex-direction: column
+    }
+
+    .panel-header {
+      padding: 8px 16px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      justify-content: space-between
+    }
+
+    .brain-canvas-wrap {
+      flex: 1;
+      position: relative;
+      overflow: hidden
+    }
+
+    canvas {
+      display: block
+    }
+
+    /* UI Components */
+    .btn {
+      width: 100%;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 11px;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: 0.2s
+    }
+
+    .btn:hover {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--accent)
+    }
+
+    .btn-primary {
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--accent);
+      border-color: rgba(56, 189, 248, 0.3)
+    }
+
+    select {
+      width: 100%;
+      padding: 6px;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 11px;
+      border-radius: 4px;
+      outline: none
+    }
+
+    .label {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      display: block
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px
+    }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(56, 189, 248, 0.2);
+      border-radius: 3px
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="status-pulse"></div>
+      LMN World Engine <span style="color:var(--muted)">//</span> IDE
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button type="button" id="kw-run" class="btn" style="width:auto">Run Keywords</button>
+      <div style="font-size:12px;color:var(--muted)" id="status-display">System Ready</div>
+    </div>
+  </div>
+
+  <div class="workspace">
+    <!-- Sidebar: Project Controls -->
+    <div class="sidebar">
+      <div>
+        <span class="label">Active Project</span>
+        <select id="pm-project-select"></select>
+      </div>
+
+      <div class="row">
+        <button type="button" id="pm-new" class="btn">New</button>
+        <button type="button" id="pm-dup" class="btn">Clone</button>
+      </div>
+      <div class="row">
+        <button type="button" id="pm-rename" class="btn">Rename</button>
+        <button type="button" id="pm-del" class="btn"
+          style="color:#ef4444;border-color:rgba(239,68,68,0.3)">Delete</button>
+      </div>
+
+      <div style="height:1px;background:var(--border);margin:4px 0"></div>
+
+      <div>
+        <span class="label">Time Machine</span>
+        <button type="button" id="btn-save-version" class="btn btn-primary" style="margin-bottom:8px">Commit
+          Snapshot</button>
+        <select id="pm-versions">
+          <option value="">Select Version...</option>
+        </select>
+      </div>
+
+      <div style="height:1px;background:var(--border);margin:4px 0"></div>
+
+      <div>
+        <span class="label">Blueprints</span>
+        <div class="row">
+          <select id="pm-examples" style="border-radius:4px 0 0 4px;border-right:none">
+            <option value="">Load Template...</option>
+          </select>
+          <button type="button" id="pm-load-example" class="btn"
+            style="width:auto;border-radius:0 4px 4px 0">Load</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main: Editor + Brain -->
+    <div class="main-area">
+      <!-- Tabs -->
+      <div class="tab-bar" id="tab-container">
+        <!-- Generated by JS -->
+      </div>
+
+      <!-- Editor Stack -->
+      <div class="editor-container" id="editor-stack">
+        <textarea data-lang="html" class="code-editor" spellcheck="false"
+          placeholder="<!-- HTML Interface -->"></textarea>
+        <textarea data-lang="css" class="code-editor" spellcheck="false" placeholder="/* Stylesheet */"></textarea>
+        <textarea data-lang="typescript" class="code-editor" spellcheck="false"
+          placeholder="// TypeScript Logic"></textarea>
+        <textarea data-lang="java" class="code-editor" spellcheck="false"
+          placeholder="// Java Backend Entity"></textarea>
+        <textarea data-lang="python" class="code-editor" spellcheck="false"
+          placeholder="# Python AI Scripts"></textarea>
+        <textarea data-lang="cpp" class="code-editor" spellcheck="false" placeholder="// C++ Engine Core"></textarea>
+      </div>
+
+      <!-- Brain Visualization -->
+      <div class="brain-panel">
+        <div class="panel-header">
+          <span>Neural Lattice Visualization</span>
+          <span id="brain-stats">Nodes: 0 | Synapses: 0</span>
+        </div>
+        <div class="brain-canvas-wrap" id="canvas-wrap">
+          <canvas id="brain-canvas"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const $ = (s, r = document) => r.querySelector(s);
+      const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+      // --- Config ---
+      const isPreview = globalThis.location.protocol === 'blob:' || globalThis.location.protocol === 'file:';
+      const API_BASE = (globalThis.__LMN_API_BASE || "").trim() || (isPreview ? "http://127.0.0.1:8080/api" : "/api");
+
+      const LANGUAGES = [
+        { id: 'cpp', label: 'C++ Core' },
+        { id: 'python', label: 'Python AI' },
+        { id: 'typescript', label: 'TypeScript' },
+        { id: 'java', label: 'Java' },
+        { id: 'html', label: 'HTML' },
+        { id: 'css', label: 'CSS' }
+      ];
+
+      // --- State ---
+      let state = {
+        projectId: "",
+        isDirty: false,
+        activeTab: "cpp",
+        autosaveTimer: null,
+        inFlight: false
+      };
+
+      // --- UI Init ---
+      const tabContainer = $("#tab-container");
+      const statusEl = $("#status-display");
+
+      // Build Tabs
+      LANGUAGES.forEach(lang => {
+        const btn = document.createElement("div");
+        btn.className = `tab ${lang.id === state.activeTab ? 'active' : ''}`;
+        btn.textContent = lang.label;
+        btn.dataset.target = lang.id;
+        btn.onclick = () => switchTab(lang.id);
+        tabContainer.appendChild(btn);
+      });
+
+      // Init Editors
+      $$(".code-editor").forEach(el => {
+        if (el.dataset.lang === state.activeTab) el.classList.add("active");
+        el.addEventListener("input", onEdit);
+      });
+
+      function switchTab(langId) {
+        state.activeTab = langId;
+        $$(".tab").forEach(t => t.classList.toggle("active", t.dataset.target === langId));
+        $$(".code-editor").forEach(e => e.classList.toggle("active", e.dataset.lang === langId));
+        drawBrain();
+      }
+
+      function onEdit() {
+        state.isDirty = true;
+        setStatus("Unsaved changes...");
+        scheduleAutosave();
+        drawBrain();
+      }
+
+      function setStatus(msg) { statusEl.textContent = msg; }
+
+      // --- Keyword Runner + Decoding Store (IndexedDB) ---
+      const KEYWORD_PROCESS_URL = "keyword-runner/process.json";
+
+      function openDecodingDB() {
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open("decoding_store", 1);
+          req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains("runs")) {
+              const store = db.createObjectStore("runs", { keyPath: "id" });
+              store.createIndex("by_time", "createdAt");
+            }
+          };
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      }
+
+      async function dbPutRun(run) {
+        const db = await openDecodingDB();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction("runs", "readwrite");
+          tx.objectStore("runs").put(run);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+      }
+
+      function fnv1a32Hex(str) {
+        let hash = 0x811c9dc5;
+        for (let i = 0; i < str.length; i++) {
+          hash ^= (str.codePointAt(i) ?? 0);
+          hash = Math.imul(hash, 0x01000193);
+        }
+        return (hash >>> 0).toString(16).padStart(8, "0");
+      }
+
+      async function sha256HexOrFallback(str) {
+        if (globalThis.crypto?.subtle) {
+          const data = new TextEncoder().encode(str);
+          const buf = await globalThis.crypto.subtle.digest("SHA-256", data);
+          const bytes = Array.from(new Uint8Array(buf));
+          return bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
+        }
+        return `fnv1a32:${fnv1a32Hex(str)}`;
+      }
+
+      async function loadKeywordProcess() {
+        const res = await fetch(KEYWORD_PROCESS_URL, { cache: "no-cache" });
+        if (!res.ok) throw new Error(`Failed to load ${KEYWORD_PROCESS_URL}: ${res.status}`);
+        const cfg = await res.json();
+        if (!cfg || typeof cfg !== "object") throw new TypeError("process.json must be an object");
+        if (typeof cfg.mappingVersion !== "string" || !cfg.mappingVersion) throw new TypeError("mappingVersion required");
+        if (!cfg.keywords || typeof cfg.keywords !== "object") throw new TypeError("keywords required");
+        return cfg;
+      }
+
+      function findKeywordHits(source, keywordMap) {
+        const hits = [];
+
+        for (const [kw, spec] of Object.entries(keywordMap)) {
+          if (!kw.endsWith(":")) continue;
+
+          for (let idx = 0; ; ) {
+            const at = source.indexOf(kw, idx);
+            if (at === -1) break;
+            hits.push({ keyword: kw, at, spec, kind: "prefix" });
+            idx = at + kw.length;
+          }
+        }
+
+        const tokens = source.match(/\w+/g) ?? [];
+        const tokenSet = new Set(tokens);
+
+        for (const [kw, spec] of Object.entries(keywordMap)) {
+          if (kw.endsWith(":")) continue;
+          if (tokenSet.has(kw)) {
+            hits.push({ keyword: kw, at: source.indexOf(kw), spec, kind: "token" });
+          }
+        }
+
+        hits.sort((a, b) => (a.at - b.at) || a.keyword.localeCompare(b.keyword));
+        return hits;
+      }
+
+      const C = 299792458;
+      function cavityResonantHz(cavity, idx) {
+        const { a, b, d, er, ur } = cavity;
+        const { mode, l, m, n } = idx;
+
+        if (!(a > 0 && b > 0 && d > 0 && er > 0 && ur > 0)) throw new TypeError("cavity params must be > 0");
+        if (mode === "TE") {
+          if (![l, m, n].every(Number.isInteger) || l < 0 || m < 0 || n < 0) throw new TypeError("TE indices must be non-negative ints");
+          if (l === 0 && m === 0 && n === 0) throw new RangeError("TE(0,0,0) invalid");
+        } else if (mode === "TM") {
+          if (![l, m, n].every(Number.isInteger) || l < 1 || m < 1 || n < 1) throw new TypeError("TM indices must be positive ints");
+        } else {
+          throw new TypeError("mode must be TE or TM");
+        }
+
+        const inv = 1 / Math.sqrt(er * ur);
+        const k = Math.hypot(l / a, m / b, n / d);
+        return (C / 2) * k * inv;
+      }
+
+      function vFromF(f, f0, R = 12) {
+        if (f <= 0 || f0 <= 0) throw new TypeError("positive frequencies required");
+        return (12 / R) * (Math.log(f / f0) / Math.log(2));
+      }
+
+      function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+      const KEYWORD_ACTIONS = {
+        cavityMode: (ctx, params) => {
+          const cavity = ctx.defaults?.cavity;
+          if (!cavity) throw new Error("Missing defaults.cavity");
+          const fHz = cavityResonantHz(cavity, params);
+          const vRaw = vFromF(fHz, ctx.f0, ctx.R);
+          const v = clamp(vRaw, -1, 1);
+          return { type: "cavity_mode", label: `${params.mode}${params.l}${params.m}${params.n}`, f_hz: fHz, v_raw: vRaw, v, cavity };
+        },
+        tagNumber: (_ctx, params) => ({ type: "number_tag", value: Number(params.value) }),
+        markUnfold: () => ({ type: "unfold_marker_seen", note: "Detected &token: prefix in source" })
+      };
+
+      function runKeywordHits(cfg, source, hits) {
+        const ctx = { defaults: cfg.defaults || {}, f0: 528, R: 12 };
+        const decoded = [];
+        for (const h of hits) {
+          const actionName = h.spec.action;
+          const fn = KEYWORD_ACTIONS[actionName];
+          if (!fn) {
+            decoded.push({ keyword: h.keyword, error: `Unknown action: ${actionName}` });
+            continue;
+          }
+          try {
+            decoded.push({ keyword: h.keyword, action: actionName, output: fn(ctx, h.spec.params || {}) });
+          } catch (e) {
+            decoded.push({ keyword: h.keyword, action: actionName, error: String(e?.message || e) });
+          }
+        }
+        return decoded;
+      }
+
+      async function runKeywordsAndSaveFromActiveEditor() {
+        const cfg = await loadKeywordProcess();
+        const el = $("textarea.code-editor.active") || $(`textarea[data-lang="${state.activeTab}"]`);
+        const sourceText = el ? el.value : "";
+        const snap = getSnapshot();
+        const hits = findKeywordHits(sourceText, cfg.keywords);
+        const decoded = runKeywordHits(cfg, sourceText, hits);
+
+        const sourceHash = await sha256HexOrFallback(sourceText);
+        const configHash = await sha256HexOrFallback(JSON.stringify(cfg));
+
+        const run = {
+          id: `${cfg.mappingVersion}:${sourceHash}`,
+          createdAt: new Date().toISOString(),
+          mappingVersion: cfg.mappingVersion,
+          projectId: state.projectId || "",
+          activeTab: state.activeTab,
+          sourceHash,
+          configHash,
+          source: sourceText,
+          files: snap.files,
+          ui: snap.ui,
+          hits: hits.map((h) => ({ keyword: h.keyword, kind: h.kind, at: h.at, action: h.spec.action })),
+          decoded
+        };
+
+        await dbPutRun(run);
+
+        try {
+          if ("BroadcastChannel" in globalThis) {
+            const ch = new BroadcastChannel("lmn-decoding");
+            ch.postMessage({ type: "decoding-run-saved", id: run.id, createdAt: run.createdAt });
+            ch.close();
+          }
+        } catch (e) {
+          console.warn("BroadcastChannel notify failed", e);
+        }
+
+        return run;
+      }
+
+      // --- API Client ---
+      async function api(path, method = "GET", body = null) {
+        const opts = { method, headers: { "Content-Type": "application/json" } };
+        if (body) opts.body = JSON.stringify(body);
+        const res = await fetch(`${API_BASE}${path}`, opts);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "API Error");
+        return data;
+      }
+
+      // --- Data Logic ---
+      function getSnapshot() {
+        const files = {};
+        LANGUAGES.forEach(l => {
+          const el = $(`textarea[data-lang="${l.id}"]`);
+          files[l.id] = el ? el.value : "";
+        });
+        return { files, ui: { activeTab: state.activeTab, timestamp: Date.now() } };
+      }
+
+      function applySnapshot(snap) {
+        if (!snap || !snap.files) return;
+        LANGUAGES.forEach(l => {
+          const el = $(`textarea[data-lang="${l.id}"]`);
+          if (el) el.value = snap.files[l.id] || "";
+        });
+        drawBrain();
+      }
+
+      // --- Autosave ---
+      function scheduleAutosave() {
+        if (!state.projectId) return;
+        clearTimeout(state.autosaveTimer);
+        state.autosaveTimer = setTimeout(async () => {
+          if (!state.isDirty || state.inFlight) return;
+          state.inFlight = true;
+          setStatus("Autosaving to Neural Cloud...");
+          try {
+            await api(`/projects/${state.projectId}/draft`, "PUT", { snapshot: getSnapshot() });
+            state.isDirty = false;
+            setStatus(`Synced @ ${new Date().toLocaleTimeString()}`);
+          } catch (e) {
+            setStatus("Sync Failed");
+            console.error(e);
+          } finally {
+            state.inFlight = false;
+          }
+        }, 1500);
+      }
+
+      // --- Project Management ---
+      async function refreshProjects() {
+        const data = await api("/projects");
+        const sel = $("#pm-project-select");
+        sel.innerHTML = data.projects.map(p => `<option value="${p.id}">${p.name}</option>`).join("");
+        if (state.projectId) sel.value = state.projectId;
+        else if (data.projects.length > 0) loadProject(data.projects[0].id);
+        const exData = await api("/examples");
+        $("#pm-examples").innerHTML = `<option value="">Select Template...</option>` + exData.examples.map(e => `<option value="${e.slug}">${e.title}</option>`).join("");
+      }
+
+      async function loadProject(id) {
+        state.projectId = id; $("#pm-project-select").value = id; setStatus("Loading World Data...");
+        try {
+          const [pRes, dRes] = await Promise.all([api(`/projects/${id}`), api(`/projects/${id}/draft`)]);
+          const draftSnap = dRes.draft?.snapshot; const latestSnap = pRes.latest?.snapshot;
+          applySnapshot(draftSnap || latestSnap || { files: {} });
+          if (draftSnap) setStatus("Restored Unsaved Draft"); else setStatus("Ready");
+          refreshVersions(id); state.isDirty = false;
+        } catch (e) {
+          console.warn("Load Error:", e);
+          setStatus("Load Error");
+        }
+      }
+
+      async function refreshVersions(pid) {
+        const data = await api(`/projects/${pid}/versions`);
+        $("#pm-versions").innerHTML = `<option value="">Restore Version...</option>` + data.versions.map(v => `<option value="${v.version}">v${v.version} (${new Date(v.created_at).toLocaleDateString()})</option>`).join("");
+      }
+
+      // --- Event Listeners ---
+      $("#pm-project-select").onchange = (e) => loadProject(e.target.value);
+      $("#pm-new").onclick = async () => { const name = prompt("New World Name:", "Sector 7 Prototype"); if (name) { const res = await api("/projects", "POST", { name, snapshot: getSnapshot() }); await refreshProjects(); loadProject(res.project.id); } };
+      $("#pm-rename").onclick = async () => { const name = prompt("Rename World:", ""); if (name) { await api(`/projects/${state.projectId}`, "PUT", { name }); refreshProjects(); } };
+      $("#pm-dup").onclick = async () => { const cur = await api(`/projects/${state.projectId}`); await api("/projects", "POST", { name: cur.project.name + " (Clone)", snapshot: getSnapshot() }); refreshProjects(); };
+      $("#pm-del").onclick = async () => {
+        if (confirm("Destroy this world permanently?")) {
+          await api(`/projects/${state.projectId}`, "DELETE");
+          state.projectId = "";
+          refreshProjects();
+        }
+      };
+
+      $("#kw-run").onclick = async () => {
+        setStatus("Running keywords...");
+        try {
+          const run = await runKeywordsAndSaveFromActiveEditor();
+          setStatus(`Keywords saved (${run.hits.length}) from ${run.activeTab}`);
+        } catch (e) {
+          console.error("Keyword run failed:", e);
+          setStatus("Keyword run failed");
+        }
+      };
+
+      $("#btn-save-version").onclick = async () => {
+        setStatus("Committing Snapshot...");
+        await api(`/projects/${state.projectId}`, "PUT", { snapshot: getSnapshot() });
+        refreshVersions(state.projectId);
+        setStatus("Snapshot Committed");
+      };
+
+      $("#pm-versions").onchange = async (e) => {
+        if (!e.target.value) return;
+        const v = await api(`/projects/${state.projectId}/versions/${e.target.value}`);
+        applySnapshot(v.version.snapshot);
+        e.target.value = "";
+        setStatus(`Time Jump to v${v.version.version} Complete`);
+      };
+
+      $("#pm-load-example").onclick = async () => {
+        const slug = $("#pm-examples").value;
+        if (!slug) return;
+        const data = await api(`/examples/${slug}`);
+        applySnapshot(data.example.snapshot || { files: {} });
+        state.isDirty = true;
+        scheduleAutosave();
+      };
+
+          // --- Brain Visualizer (Canvas) ---
+          const cvs = $("#brain-canvas"); const ctx = cvs.getContext("2d"); let frame = 0;
+          function resizeCanvas() { const p = cvs.parentElement; cvs.width = p.clientWidth; cvs.height = p.clientHeight; }
+          window.onresize = resizeCanvas; setTimeout(resizeCanvas, 100);
+          function drawBrain() {
+            let totalLen = 0; $$(".code-editor").forEach((el) => { totalLen += el.value.length; });
+            $("#brain-stats").textContent = `Nodes: ${Math.floor(totalLen / 10)} | Synapses: ${totalLen * 2}`;
+          }
+          function loop() {
+            frame++; ctx.fillStyle = "rgba(2, 4, 10, 0.2)"; ctx.fillRect(0, 0, cvs.width, cvs.height);
+            const t = frame * 0.02; const cx = cvs.width / 2; const cy = cvs.height / 2;
+            LANGUAGES.forEach((lang, i) => {
+              const el = $(`textarea[data-lang="${lang.id}"]`);
+              if (!el || el.value.length < 5) return;
+              const angle = (i / LANGUAGES.length) * Math.PI * 2 + t * 0.5;
+              const radius = 60 + Math.sin(t * 2 + i) * 10;
+              const x = cx + Math.cos(angle) * radius;
+              const y = cy + Math.sin(angle) * radius;
+              ctx.beginPath();
+              ctx.arc(x, y, 4 + Math.min(el.value.length / 100, 10), 0, Math.PI * 2);
+              ctx.fillStyle = i === LANGUAGES.findIndex(l => l.id === state.activeTab) ? "#38bdf8" : "#1e293b";
+              ctx.fill();
+              ctx.strokeStyle = "rgba(56,189,248,0.5)";
+              ctx.stroke();
+              ctx.beginPath();
+              ctx.moveTo(cx, cy);
+              ctx.lineTo(x, y);
+              ctx.strokeStyle = `rgba(56,189,248, ${0.1 + Math.sin(t * 5 + i) * 0.1})`;
+              ctx.stroke();
+            });
+            ctx.beginPath(); ctx.arc(cx, cy, 20 + Math.sin(t) * 5, 0, Math.PI * 2); ctx.fillStyle = "rgba(56,189,248,0.1)"; ctx.fill(); requestAnimationFrame(loop);
+          }
+          (async () => { try { await refreshProjects(); } catch (e) { console.warn("API unavailable:", e); setStatus("Offline Mode (API unreachable)"); } })();
+          loop();
+
+        }) ();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,1336 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Canvas 3D Lab (Math Only)</title>
+  <style>
+    :root {
+      --bg: #0b0e13;
+      --panel: #101621;
+      --panel2: #0f141e;
+      --text: #e7edf7;
+      --muted: #9aa7bd;
+      --line: #223044;
+      --accent: #7cc4ff;
+      --warn: #ff5a5a;
+      --ok: #64ff8f;
+      --shadow: 0 12px 30px rgba(0, 0, 0, .35);
+      --radius: 14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+    }
+
+    .app {
+      height: 100%;
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 14px;
+      padding: 14px;
+      box-sizing: border-box;
+    }
+
+    .stage {
+      position: relative;
+      background: radial-gradient(1200px 700px at 20% 20%, rgba(124, 196, 255, .08), transparent 60%),
+        radial-gradient(900px 600px at 80% 40%, rgba(100, 255, 143, .06), transparent 55%),
+        linear-gradient(180deg, rgba(255, 255, 255, .03), transparent 35%);
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      min-height: 420px;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .hud {
+      position: absolute;
+      left: 12px;
+      top: 12px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      background: rgba(16, 22, 33, .65);
+      border: 1px solid rgba(255, 255, 255, .08);
+      backdrop-filter: blur(8px);
+      padding: 10px 10px;
+      border-radius: 12px;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, .25);
+    }
+
+    .btn {
+      border: 1px solid rgba(255, 255, 255, .10);
+      background: rgba(255, 255, 255, .04);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform .05s ease, background .15s ease, border-color .15s ease;
+      user-select: none;
+    }
+
+    .btn:hover {
+      background: rgba(255, 255, 255, .06);
+      border-color: rgba(255, 255, 255, .18);
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .btn.primary {
+      border-color: rgba(124, 196, 255, .35);
+      background: rgba(124, 196, 255, .10);
+    }
+
+    .btn.danger {
+      border-color: rgba(255, 90, 90, .40);
+      background: rgba(255, 90, 90, .10);
+    }
+
+    .btn.ok {
+      border-color: rgba(100, 255, 143, .35);
+      background: rgba(100, 255, 143, .10);
+    }
+
+    .chip {
+      padding: 7px 9px;
+      border-radius: 999px;
+      font-family: var(--mono);
+      font-size: 12px;
+      border: 1px solid rgba(255, 255, 255, .10);
+      background: rgba(0, 0, 0, .18);
+      color: var(--muted);
+    }
+
+    .side {
+      background: linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, .02));
+      border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 420px;
+    }
+
+    .side header {
+      padding: 14px 14px 12px;
+      background: rgba(16, 22, 33, .75);
+      border-bottom: 1px solid rgba(255, 255, 255, .07);
+    }
+
+    .side header h2 {
+      margin: 0 0 6px 0;
+      font-size: 16px;
+      letter-spacing: .2px;
+    }
+
+    .side header .sub {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .pane {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: auto;
+    }
+
+    .card {
+      background: rgba(0, 0, 0, .18);
+      border: 1px solid rgba(255, 255, 255, .07);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    input[type="text"],
+    textarea,
+    select {
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, .10);
+      background: rgba(255, 255, 255, .03);
+      color: var(--text);
+      padding: 10px 10px;
+      outline: none;
+      font-family: var(--sans);
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    .mono {
+      font-family: var(--mono);
+    }
+
+    .divider {
+      height: 1px;
+      background: rgba(255, 255, 255, .07);
+      margin: 6px 0;
+    }
+
+    .small {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .noteList {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .noteItem {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      border: 1px solid rgba(255, 255, 255, .08);
+      background: rgba(255, 255, 255, .03);
+      border-radius: 12px;
+      padding: 10px;
+      cursor: pointer;
+    }
+
+    .pinDot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-top: 4px;
+      border: 1px solid rgba(255, 255, 255, .25);
+      flex: 0 0 auto;
+    }
+
+    .noteTitle {
+      font-size: 13px;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .noteMeta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .kbd {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, .12);
+      background: rgba(0, 0, 0, .18);
+      color: var(--text);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <div class="stage" id="stage">
+      <canvas id="c"></canvas>
+
+      <div class="hud">
+        <button class="btn primary" id="spawnCube">Spawn Cube</button>
+        <button class="btn" id="spawnVector">Spawn Vector</button>
+        <button class="btn ok" id="dotBtn">Dot (last 2 vectors)</button>
+        <button class="btn ok" id="crossBtn">Cross (last 2 vectors)</button>
+        <button class="btn" id="togglePins">Toggle Pins</button>
+        <button class="btn danger" id="resetBtn">Reset</button>
+        <span class="chip" id="status">Ready</span>
+      </div>
+    </div>
+
+    <aside class="side">
+      <header>
+        <h2>Inspector</h2>
+        <div class="sub">
+          Mouse: <span class="kbd">LMB</span> orbit, <span class="kbd">Shift+LMB</span> pan, <span
+            class="kbd">Wheel</span> zoom.
+          Add pin: <span class="kbd">Ctrl+Click</span>. Hide pins: <span class="kbd">Alt+H</span>.
+        </div>
+      </header>
+
+      <div class="pane">
+        <div class="card">
+          <div class="row" style="justify-content:space-between">
+            <div>
+              <div class="label">Camera</div>
+              <div class="mono small" id="camReadout">—</div>
+            </div>
+            <div>
+              <div class="label">Scene</div>
+              <div class="mono small" id="sceneReadout">—</div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="small">
+            Rendering: painter sort + optional backface culling (enabled). Pure 2D canvas, no WebGL.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="row" style="justify-content:space-between; align-items:flex-end;">
+            <div>
+              <div class="label">Pins / Notes</div>
+              <div class="small">Click a pin in the scene or pick from the list.</div>
+            </div>
+            <div class="row">
+              <label class="small"><input type="checkbox" id="cullToggle" checked /> Backface cull</label>
+            </div>
+          </div>
+          <div class="divider"></div>
+
+          <div class="noteList" id="noteList"></div>
+        </div>
+
+        <div class="card" id="noteEditorCard">
+          <div class="label">Selected Note</div>
+          <div class="small" id="noteNone">None selected.</div>
+
+          <div id="noteEditor" style="display:none; margin-top:10px;">
+            <div class="row">
+              <div style="flex:1;">
+                <div class="label">Category</div>
+                <select id="noteCategory">
+                  <option value="animation">Animation (Blue)</option>
+                  <option value="vfx">VFX (Red)</option>
+                  <option value="sound">Sound (Green)</option>
+                  <option value="camera">Camera (Orange)</option>
+                  <option value="misc">Misc (Gray)</option>
+                </select>
+              </div>
+              <div style="flex:1;">
+                <div class="label">Anchor</div>
+                <input type="text" id="noteAnchor" class="mono" readonly />
+              </div>
+            </div>
+
+            <div style="margin-top:10px;">
+              <div class="label">Text</div>
+              <textarea id="noteText" placeholder="e.g., Raise sword @Frame 30"></textarea>
+            </div>
+
+            <div class="row" style="margin-top:10px; justify-content:space-between;">
+              <button class="btn" id="focusNote">Focus</button>
+              <button class="btn danger" id="deleteNote">Delete</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    /* =========================================================
+       Math Core: Vector3 + Matrix4 (row-major for simplicity)
+       ========================================================= */
+
+    class Vector3 {
+      constructor(x = 0, y = 0, z = 0) { this.x = x; this.y = y; this.z = z; }
+      clone() { return new Vector3(this.x, this.y, this.z); }
+      add(v) { return new Vector3(this.x + v.x, this.y + v.y, this.z + v.z); }
+      sub(v) { return new Vector3(this.x - v.x, this.y - v.y, this.z - v.z); }
+      mul(s) { return new Vector3(this.x * s, this.y * s, this.z * s); }
+      dot(v) { return this.x * v.x + this.y * v.y + this.z * v.z; }
+      cross(v) {
+        return new Vector3(
+          this.y * v.z - this.z * v.y,
+          this.z * v.x - this.x * v.z,
+          this.x * v.y - this.y * v.x
+        );
+      }
+      len() { return Math.hypot(this.x, this.y, this.z); }
+      norm() {
+        const l = this.len() || 1;
+        return new Vector3(this.x / l, this.y / l, this.z / l);
+      }
+      static lerp(a, b, t) { return a.mul(1 - t).add(b.mul(t)); }
+    }
+
+    class Matrix4 {
+      constructor(m) {
+        this.m = m ? m.slice(0, 16) : Matrix4.identity().m;
+      }
+      static identity() {
+        return new Matrix4([
+          1, 0, 0, 0,
+          0, 1, 0, 0,
+          0, 0, 1, 0,
+          0, 0, 0, 1
+        ]);
+      }
+      static translation(v) {
+        return new Matrix4([
+          1, 0, 0, v.x,
+          0, 1, 0, v.y,
+          0, 0, 1, v.z,
+          0, 0, 0, 1
+        ]);
+      }
+      static scale(v) {
+        return new Matrix4([
+          v.x, 0, 0, 0,
+          0, v.y, 0, 0,
+          0, 0, v.z, 0,
+          0, 0, 0, 1
+        ]);
+      }
+      static rotationX(a) {
+        const c = Math.cos(a), s = Math.sin(a);
+        return new Matrix4([
+          1, 0, 0, 0,
+          0, c, -s, 0,
+          0, s, c, 0,
+          0, 0, 0, 1
+        ]);
+      }
+      static rotationY(a) {
+        const c = Math.cos(a), s = Math.sin(a);
+        return new Matrix4([
+          c, 0, s, 0,
+          0, 1, 0, 0,
+          -s, 0, c, 0,
+          0, 0, 0, 1
+        ]);
+      }
+      static rotationZ(a) {
+        const c = Math.cos(a), s = Math.sin(a);
+        return new Matrix4([
+          c, -s, 0, 0,
+          s, c, 0, 0,
+          0, 0, 1, 0,
+          0, 0, 0, 1
+        ]);
+      }
+      static multiply(a, b) {
+        const am = a.m, bm = b.m;
+        const r = new Array(16).fill(0);
+        for (let row = 0; row < 4; row++) {
+          for (let col = 0; col < 4; col++) {
+            r[row * 4 + col] =
+              am[row * 4 + 0] * bm[0 * 4 + col] +
+              am[row * 4 + 1] * bm[1 * 4 + col] +
+              am[row * 4 + 2] * bm[2 * 4 + col] +
+              am[row * 4 + 3] * bm[3 * 4 + col];
+          }
+        }
+        return new Matrix4(r);
+      }
+      transformPoint(v) {
+        const m = this.m;
+        const x = v.x * m[0] + v.y * m[1] + v.z * m[2] + m[3];
+        const y = v.x * m[4] + v.y * m[5] + v.z * m[6] + m[7];
+        const z = v.x * m[8] + v.y * m[9] + v.z * m[10] + m[11];
+        const w = v.x * m[12] + v.y * m[13] + v.z * m[14] + m[15];
+        const iw = w ? 1 / w : 1;
+        return new Vector3(x * iw, y * iw, z * iw);
+      }
+    }
+
+    /* =========================================================
+       Camera: orbit controls, view basis, projection
+       ========================================================= */
+
+    class Camera {
+      constructor() {
+        this.target = new Vector3(0, 0, 0);
+        this.distance = 14;
+        this.yaw = -0.65;
+        this.pitch = 0.28;
+
+        this.fov = 70 * Math.PI / 180;
+        this.near = 0.1;
+        this.far = 200;
+      }
+
+      get position() {
+        // spherical orbit
+        const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
+        const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
+        return new Vector3(
+          this.target.x + this.distance * cp * sy,
+          this.target.y + this.distance * sp,
+          this.target.z + this.distance * cp * cy
+        );
+      }
+
+      // LookAt view matrix (row-major), matching the user's “camera basis” ritual
+      getViewMatrix() {
+        const eye = this.position;
+        const up = new Vector3(0, 1, 0);
+
+        const zAxis = eye.sub(this.target).norm();      // forward (camera space +z)
+        const xAxis = up.cross(zAxis).norm();           // right
+        const yAxis = zAxis.cross(xAxis).norm();        // up
+
+        // row-major with translation in last column
+        return new Matrix4([
+          xAxis.x, xAxis.y, xAxis.z, -xAxis.dot(eye),
+          yAxis.x, yAxis.y, yAxis.z, -yAxis.dot(eye),
+          zAxis.x, zAxis.y, zAxis.z, -zAxis.dot(eye),
+          0, 0, 0, 1
+        ]);
+      }
+
+      project(world, viewportW, viewportH) {
+        const view = this.getViewMatrix();
+        const cam = view.transformPoint(world);
+
+        // perspective: x' = x / z, y' = y / z style, but we keep your stable "scale = k / (|z|+bias)"
+        // Use positive depth: objects in front typically have cam.z > 0 with our basis.
+        const z = cam.z;
+        const k = (viewportH * 0.9) / Math.tan(this.fov * 0.5);
+        const denom = (z + 4.0); // bias for stability near origin
+        const scale = denom !== 0 ? (k / denom) : k;
+
+        const sx = (viewportW / 2) + cam.x * scale;
+        const sy = (viewportH / 2) - cam.y * scale;
+
+        return { sx, sy, z, cam };
+      }
+    }
+
+    /* =========================================================
+       Scene Primitives
+       ========================================================= */
+
+    function rnd(min, max) { return min + Math.random() * (max - min); }
+
+    class Mesh {
+      constructor({ name = "mesh", vertices = [], faces = [], edges = [], color = "#cbd6ea" }) {
+        this.name = name;
+        this.baseVertices = vertices.map(v => v.clone());
+        this.vertices = vertices.map(v => v.clone());
+        this.faces = faces;   // array of arrays (indices)
+        this.edges = edges;   // array of [a,b]
+        this.color = color;
+
+        this.position = new Vector3(0, 0, 0);
+        this.rotation = new Vector3(0, 0, 0);
+        this.scale = new Vector3(1, 1, 1);
+      }
+
+      getModelMatrix() {
+        const T = Matrix4.translation(this.position);
+        const Rx = Matrix4.rotationX(this.rotation.x);
+        const Ry = Matrix4.rotationY(this.rotation.y);
+        const Rz = Matrix4.rotationZ(this.rotation.z);
+        const S = Matrix4.scale(this.scale);
+        const R = Matrix4.multiply(Matrix4.multiply(Rz, Ry), Rx);
+        return Matrix4.multiply(T, Matrix4.multiply(R, S));
+      }
+
+      getWorldVertices() {
+        const M = this.getModelMatrix();
+        return this.baseVertices.map(v => M.transformPoint(v));
+      }
+    }
+
+    function makeCube(size = 2) {
+      const s = size / 2;
+      const v = [
+        new Vector3(-s, -s, s), new Vector3(s, -s, s),
+        new Vector3(s, s, s), new Vector3(-s, s, s),
+        new Vector3(-s, -s, -s), new Vector3(s, -s, -s),
+        new Vector3(s, s, -s), new Vector3(-s, s, -s),
+      ];
+      const faces = [
+        [0, 1, 2, 3], // front
+        [1, 5, 6, 2], // right
+        [5, 4, 7, 6], // back
+        [4, 0, 3, 7], // left
+        [3, 2, 6, 7], // top
+        [4, 5, 1, 0], // bottom
+      ];
+      const edges = [
+        [0, 1], [1, 2], [2, 3], [3, 0],
+        [4, 5], [5, 6], [6, 7], [7, 4],
+        [0, 4], [1, 5], [2, 6], [3, 7]
+      ];
+      return new Mesh({ name: "Cube", vertices: v, faces, edges, color: "#cbd6ea" });
+    }
+
+    class LabVector {
+      constructor(from, to, color = "#ffcf5c") {
+        this.name = "Vector";
+        this.from = from.clone();
+        this.to = to.clone();
+        this.color = color;
+      }
+      direction() { return this.to.sub(this.from); }
+    }
+
+    class NotePin {
+      constructor({ id, world, category = "animation", text = "New note", anchorLabel = "world" }) {
+        this.id = id;
+        this.world = world.clone();
+        this.category = category;
+        this.text = text;
+        this.anchorLabel = anchorLabel; // e.g. "Cube#2" or "world"
+        this.screen = { x: 0, y: 0, z: 0, visible: false };
+      }
+      color() {
+        switch (this.category) {
+          case "animation": return "#7cc4ff";
+          case "vfx": return "#ff5a5a";
+          case "sound": return "#64ff8f";
+          case "camera": return "#ffb35a";
+          default: return "#b7c3d7";
+        }
+      }
+    }
+
+    /* =========================================================
+       Renderer: grid, axes, meshes, vectors, pins
+       ========================================================= */
+
+    class LabRenderer {
+      constructor(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext("2d");
+        this.camera = new Camera();
+
+        this.meshes = [];
+        this.vectors = [];
+        this.pins = [];
+        this.showPins = true;
+
+        this.backfaceCull = true;
+
+        this._dpi = 1;
+        this._facesDrawn = 0;
+      }
+
+      resize() {
+        const rect = this.canvas.getBoundingClientRect();
+        const dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+        this._dpi = dpr;
+        this.canvas.width = Math.floor(rect.width * dpr);
+        this.canvas.height = Math.floor(rect.height * dpr);
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      clear() {
+        const w = this.canvas.clientWidth;
+        const h = this.canvas.clientHeight;
+        this.ctx.clearRect(0, 0, w, h);
+      }
+
+      drawGrid() {
+        const ctx = this.ctx;
+        const w = this.canvas.clientWidth;
+        const h = this.canvas.clientHeight;
+
+        // screen-space grid
+        const spacing = 50;
+        ctx.save();
+        ctx.globalAlpha = 0.55;
+        ctx.strokeStyle = "#162033";
+        ctx.lineWidth = 1;
+
+        for (let x = 0; x < w; x += spacing) {
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+        }
+        for (let y = 0; y < h; y += spacing) {
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      drawAxes() {
+        const w = this.canvas.clientWidth;
+        const h = this.canvas.clientHeight;
+
+        const o = this.camera.project(new Vector3(0, 0, 0), w, h);
+        const x = this.camera.project(new Vector3(3, 0, 0), w, h);
+        const y = this.camera.project(new Vector3(0, 3, 0), w, h);
+        const z = this.camera.project(new Vector3(0, 0, 3), w, h);
+
+        const ctx = this.ctx;
+
+        const arrow = (a, b, color, label) => {
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(a.sx, a.sy);
+          ctx.lineTo(b.sx, b.sy);
+          ctx.stroke();
+
+          // arrow head
+          const dx = b.sx - a.sx, dy = b.sy - a.sy;
+          const ang = Math.atan2(dy, dx);
+          const len = 10;
+          ctx.beginPath();
+          ctx.moveTo(b.sx, b.sy);
+          ctx.lineTo(b.sx - len * Math.cos(ang - 0.35), b.sy - len * Math.sin(ang - 0.35));
+          ctx.lineTo(b.sx - len * Math.cos(ang + 0.35), b.sy - len * Math.sin(ang + 0.35));
+          ctx.closePath();
+          ctx.fillStyle = color;
+          ctx.fill();
+
+          ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace";
+          ctx.fillText(label, b.sx + 6, b.sy - 6);
+          ctx.restore();
+        };
+
+        arrow(o, x, "#ff6b6b", "X");
+        arrow(o, y, "#64ff8f", "Y");
+        arrow(o, z, "#7cc4ff", "Z");
+      }
+
+      drawVectors() {
+        const ctx = this.ctx;
+        const w = this.canvas.clientWidth;
+        const h = this.canvas.clientHeight;
+
+        for (const v of this.vectors) {
+          const p1 = this.camera.project(v.from, w, h);
+          const p2 = this.camera.project(v.to, w, h);
+
+          ctx.save();
+          ctx.strokeStyle = v.color;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(p1.sx, p1.sy);
+          ctx.lineTo(p2.sx, p2.sy);
+          ctx.stroke();
+
+          // arrow head
+          const dx = p2.sx - p1.sx, dy = p2.sy - p1.sy;
+          const ang = Math.atan2(dy, dx);
+          const len = 9;
+          ctx.beginPath();
+          ctx.moveTo(p2.sx, p2.sy);
+          ctx.lineTo(p2.sx - len * Math.cos(ang - 0.4), p2.sy - len * Math.sin(ang - 0.4));
+          ctx.lineTo(p2.sx - len * Math.cos(ang + 0.4), p2.sy - len * Math.sin(ang + 0.4));
+          ctx.closePath();
+          ctx.fillStyle = v.color;
+          ctx.fill();
+
+          ctx.restore();
+        }
+      }
+
+      drawMeshes() {
+        const ctx = this.ctx;
+        const w = this.canvas.clientWidth;
+        const h = this.canvas.clientHeight;
+
+        // Build a global face list for painter sort
+        const facePackets = [];
+        for (const mesh of this.meshes) {
+          const worldVerts = mesh.getWorldVertices();
+          const proj = worldVerts.map(v => this.camera.project(v, w, h));
+
+          // faces
+          for (const face of mesh.faces) {
+            let zSum = 0;
+            for (const idx of face) zSum += proj[idx].z;
+            const zAvg = zSum / face.length;
+
+            // backface cull (in camera space): normal · (toCamera) test
+            let culled = false;
+            if (this.backfaceCull && face.length >= 3) {
+              const a = proj[face[0]].cam;
+              const b = proj[face[1]].cam;
+              const c = proj[face[2]].cam;
+              const ab = b.sub(a);
+              const ac = c.sub(a);
+              const n = ab.cross(ac); // camera-space normal
+              // In our camera space, looking "down -z" is not enforced; instead use: keep faces whose normal points toward camera origin (0,0,0)
+              // Vector from point to camera is -a. If n·(-a) > 0, face is toward camera.
+              const toward = n.dot(a.mul(-1));
+              culled = (toward <= 0);
+            }
+
+            facePackets.push({ mesh, face, proj, zAvg, culled });
+          }
+
+          // edges (wire)
+          // We'll draw edges after faces for readability
+          mesh.__proj = proj;
+        }
+
+        facePackets.sort((A, B) => B.zAvg - A.zAvg); // far (bigger z) first -> nearer last (paints on top)
+
+        // Draw faces
+        this._facesDrawn = 0;
+        for (const fp of facePackets) {
+          if (fp.culled) continue;
+          const { face, proj } = fp;
+
+          // basic fill with depth alpha
+          const depthFade = Math.max(0, Math.min(1, (fp.zAvg / 60)));
+          const fillAlpha = 0.08 + 0.10 * (1 - depthFade);
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(proj[face[0]].sx, proj[face[0]].sy);
+          for (let i = 1; i < face.length; i++) {
+            ctx.lineTo(proj[face[i]].sx, proj[face[i]].sy);
+          }
+          ctx.closePath();
+
+          ctx.fillStyle = `rgba(203,214,234,${fillAlpha})`;
+          ctx.fill();
+
+          ctx.strokeStyle = "rgba(255,255,255,0.20)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.restore();
+          this._facesDrawn++;
+        }
+
+        // Draw edges
+        for (const mesh of this.meshes) {
+          const proj = mesh.__proj;
+          if (!proj) continue;
+
+          ctx.save();
+          ctx.strokeStyle = "rgba(124,196,255,0.28)";
+          ctx.lineWidth = 1;
+
+          for (const [a, b] of mesh.edges) {
+            ctx.beginPath();
+            ctx.moveTo(proj[a].sx, proj[a].sy);
+            ctx.lineTo(proj[b].sx, proj[b].sy);
+            ctx.stroke();
+          }
+
+          // label
+          const center = mesh.position;
+          const p = this.camera.project(center, w, h);
+          ctx.fillStyle = "rgba(231,237,247,0.85)";
+          ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace";
+          ctx.fillText(mesh.name, p.sx + 6, p.sy - 6);
+          ctx.restore();
+
+          delete mesh.__proj;
+        }
+      }
+
+      drawPins() {
+        if (!this.showPins) return;
+
+        const ctx = this.ctx;
+        const w = this.canvas.clientWidth;
+        const h = this.canvas.clientHeight;
+
+        for (const pin of this.pins) {
+          const p = this.camera.project(pin.world, w, h);
+          pin.screen.visible = (p.z > this.camera.near && p.z < this.camera.far);
+          pin.screen.x = p.sx;
+          pin.screen.y = p.sy;
+          pin.screen.z = p.z;
+          if (!pin.screen.visible) continue;
+
+          ctx.save();
+          // crosshair marker
+          ctx.strokeStyle = "rgba(255,255,255,0.35)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(p.sx - 8, p.sy); ctx.lineTo(p.sx + 8, p.sy);
+          ctx.moveTo(p.sx, p.sy - 8); ctx.lineTo(p.sx, p.sy + 8);
+          ctx.stroke();
+
+          // pin head
+          const color = pin.color();
+          ctx.beginPath();
+          ctx.arc(p.sx, p.sy - 14, 6, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.fill();
+          ctx.strokeStyle = "rgba(255,255,255,0.35)";
+          ctx.stroke();
+
+          // stem
+          ctx.beginPath();
+          ctx.moveTo(p.sx, p.sy - 8);
+          ctx.lineTo(p.sx, p.sy - 1);
+          ctx.strokeStyle = "rgba(255,255,255,0.35)";
+          ctx.stroke();
+
+          // label bubble
+          const label = pin.text.length > 26 ? pin.text.slice(0, 26) + "…" : pin.text;
+          ctx.font = "12px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
+          const tw = ctx.measureText(label).width;
+          const bx = p.sx + 10, by = p.sy - 30, bw = tw + 14, bh = 22;
+
+          ctx.fillStyle = "rgba(16,22,33,0.85)";
+          ctx.strokeStyle = "rgba(255,255,255,0.10)";
+          roundRect(ctx, bx, by, bw, bh, 9);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = "rgba(231,237,247,0.92)";
+          ctx.fillText(label, bx + 7, by + 15);
+          ctx.restore();
+        }
+      }
+
+      render() {
+        this.clear();
+        this.drawGrid();
+        this.drawAxes();
+        this.drawMeshes();
+        this.drawVectors();
+        this.drawPins();
+      }
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+      const rr = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y);
+      ctx.arcTo(x + w, y, x + w, y + h, rr);
+      ctx.arcTo(x + w, y + h, x, y + h, rr);
+      ctx.arcTo(x, y + h, x, y, rr);
+      ctx.arcTo(x, y, x + w, y, rr);
+      ctx.closePath();
+    }
+
+    /* =========================================================
+       App Wiring: input, UI, pins selection
+       ========================================================= */
+
+    const canvas = document.getElementById("c");
+    const stage = document.getElementById("stage");
+    const statusEl = document.getElementById("status");
+    const camReadout = document.getElementById("camReadout");
+    const sceneReadout = document.getElementById("sceneReadout");
+
+    const noteListEl = document.getElementById("noteList");
+    const noteNoneEl = document.getElementById("noteNone");
+    const noteEditorEl = document.getElementById("noteEditor");
+    const noteCategoryEl = document.getElementById("noteCategory");
+    const noteAnchorEl = document.getElementById("noteAnchor");
+    const noteTextEl = document.getElementById("noteText");
+    const focusNoteBtn = document.getElementById("focusNote");
+    const deleteNoteBtn = document.getElementById("deleteNote");
+
+    const cullToggle = document.getElementById("cullToggle");
+
+    const renderer = new LabRenderer(canvas);
+
+    // seed scene
+    function seed() {
+      renderer.meshes.length = 0;
+      renderer.vectors.length = 0;
+      renderer.pins.length = 0;
+
+      const cube1 = makeCube(3);
+      cube1.name = "Cube#1";
+      cube1.position = new Vector3(-2.5, 0, 0);
+      cube1.rotation = new Vector3(0.2, 0.3, 0);
+      renderer.meshes.push(cube1);
+
+      const cube2 = makeCube(2.2);
+      cube2.name = "Cube#2";
+      cube2.position = new Vector3(2.8, 0.3, -1.0);
+      cube2.rotation = new Vector3(0.1, -0.2, 0.05);
+      renderer.meshes.push(cube2);
+
+      renderer.vectors.push(new LabVector(new Vector3(0, 0, 0), new Vector3(2, 1, 1), "#ffb35a"));
+
+      // sample pins
+      renderer.pins.push(new NotePin({
+        id: crypto.randomUUID(),
+        world: new Vector3(-2.5, 1.7, 0.0),
+        category: "animation",
+        text: "Raise sword @Frame 30",
+        anchorLabel: "Cube#1"
+      }));
+      renderer.pins.push(new NotePin({
+        id: crypto.randomUUID(),
+        world: new Vector3(2.8, 1.4, -1.0),
+        category: "camera",
+        text: "Zoom here @Frame 120",
+        anchorLabel: "Cube#2"
+      }));
+      renderer.pins.push(new NotePin({
+        id: crypto.randomUUID(),
+        world: new Vector3(0.0, 0.5, -3.0),
+        category: "vfx",
+        text: "Place explosion VFX here",
+        anchorLabel: "world"
+      }));
+
+      setStatus("Scene seeded");
+      refreshNoteList();
+      deselectNote();
+    }
+
+    function setStatus(msg) {
+      statusEl.textContent = msg;
+    }
+
+    function refreshReadouts() {
+      const cam = renderer.camera;
+      const pos = cam.position;
+      camReadout.textContent = `pos=(${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)})  target=(${cam.target.x.toFixed(2)}, ${cam.target.y.toFixed(2)}, ${cam.target.z.toFixed(2)})`;
+      sceneReadout.textContent = `meshes=${renderer.meshes.length} vectors=${renderer.vectors.length} pins=${renderer.pins.length} facesDrawn=${renderer._facesDrawn}`;
+    }
+
+    // Resize
+    const ro = new ResizeObserver(() => renderer.resize());
+    ro.observe(stage);
+    renderer.resize();
+
+    /* ---------------------------
+       Mouse controls: orbit/pan/zoom
+    --------------------------- */
+    let dragging = false;
+    let dragMode = "orbit";
+    let lastX = 0, lastY = 0;
+
+    stage.addEventListener("mousedown", (e) => {
+      // ctrl+click to add pin at hit point (approx by ray to ground plane y=0)
+      if (e.ctrlKey) {
+        const world = screenToGround(e.clientX, e.clientY, 0);
+        if (world) {
+          const pin = new NotePin({
+            id: crypto.randomUUID(),
+            world,
+            category: "misc",
+            text: "New note",
+            anchorLabel: "world"
+          });
+          renderer.pins.push(pin);
+          refreshNoteList();
+          selectNote(pin.id);
+          setStatus("Pin added");
+        } else {
+          setStatus("Pin add failed (no ground hit)");
+        }
+        return;
+      }
+
+      // clicking on a pin?
+      const pinId = pickPin(e.clientX, e.clientY);
+      if (pinId) {
+        selectNote(pinId);
+        setStatus("Pin selected");
+        return;
+      }
+
+      dragging = true;
+      dragMode = e.shiftKey ? "pan" : "orbit";
+      lastX = e.clientX; lastY = e.clientY;
+    });
+
+    window.addEventListener("mouseup", () => dragging = false);
+    window.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY;
+
+      const cam = renderer.camera;
+
+      if (dragMode === "orbit") {
+        cam.yaw -= dx * 0.006;
+        cam.pitch -= dy * 0.006;
+        cam.pitch = Math.max(-1.2, Math.min(1.2, cam.pitch));
+      } else {
+        // pan in camera plane
+        const panScale = cam.distance * 0.0018;
+        const view = cam.getViewMatrix(); // rows: right/up/forward
+        const right = new Vector3(view.m[0], view.m[1], view.m[2]);
+        const up = new Vector3(view.m[4], view.m[5], view.m[6]);
+        cam.target = cam.target.add(right.mul(-dx * panScale)).add(up.mul(dy * panScale));
+      }
+    });
+
+    stage.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const cam = renderer.camera;
+      cam.distance *= Math.exp(e.deltaY * 0.0012);
+      cam.distance = Math.max(3, Math.min(80, cam.distance));
+    }, { passive: false });
+
+    /* ---------------------------
+       Keyboard shortcuts
+    --------------------------- */
+    window.addEventListener("keydown", (e) => {
+      if (e.altKey && (e.key === "h" || e.key === "H")) {
+        renderer.showPins = !renderer.showPins;
+        setStatus(renderer.showPins ? "Pins shown" : "Pins hidden");
+      }
+    });
+
+    /* ---------------------------
+       UI buttons
+    --------------------------- */
+    document.getElementById("spawnCube").addEventListener("click", () => {
+      const cube = makeCube(rnd(1.6, 3.2));
+      cube.name = `Cube#${renderer.meshes.length + 1}`;
+      cube.position = new Vector3(rnd(-4, 4), rnd(-0.2, 1.2), rnd(-3, 3));
+      cube.rotation = new Vector3(rnd(0, 0.6), rnd(-0.7, 0.7), rnd(0, 0.25));
+      renderer.meshes.push(cube);
+
+      // optional: auto-pin
+      const pin = new NotePin({
+        id: crypto.randomUUID(),
+        world: cube.position.add(new Vector3(0, rnd(1.2, 2.2), 0)),
+        category: "misc",
+        text: `Inspect ${cube.name}`,
+        anchorLabel: cube.name
+      });
+      renderer.pins.push(pin);
+      refreshNoteList();
+      setStatus(`${cube.name} spawned`);
+    });
+
+    document.getElementById("spawnVector").addEventListener("click", () => {
+      const a = new Vector3(0, 0, 0);
+      const b = new Vector3(rnd(-3, 3), rnd(0, 3), rnd(-3, 3));
+      const v = new LabVector(a, b, "#ffcf5c");
+      renderer.vectors.push(v);
+      setStatus(`Vector spawned to (${b.x.toFixed(2)},${b.y.toFixed(2)},${b.z.toFixed(2)})`);
+    });
+
+    document.getElementById("dotBtn").addEventListener("click", () => {
+      if (renderer.vectors.length < 2) { setStatus("Need at least 2 vectors"); return; }
+      const v1 = renderer.vectors[renderer.vectors.length - 1].direction();
+      const v2 = renderer.vectors[renderer.vectors.length - 2].direction();
+      const dot = v1.dot(v2);
+      setStatus(`Dot = ${dot.toFixed(4)}`);
+    });
+
+    document.getElementById("crossBtn").addEventListener("click", () => {
+      if (renderer.vectors.length < 2) { setStatus("Need at least 2 vectors"); return; }
+      const v1 = renderer.vectors[renderer.vectors.length - 1].direction();
+      const v2 = renderer.vectors[renderer.vectors.length - 2].direction();
+      const cross = v1.cross(v2);
+
+      // render cross as red vector from origin
+      renderer.vectors.push(new LabVector(new Vector3(0, 0, 0), cross, "#ff5a5a"));
+      setStatus(`Cross = (${cross.x.toFixed(3)}, ${cross.y.toFixed(3)}, ${cross.z.toFixed(3)})`);
+    });
+
+    document.getElementById("togglePins").addEventListener("click", () => {
+      renderer.showPins = !renderer.showPins;
+      setStatus(renderer.showPins ? "Pins shown" : "Pins hidden");
+    });
+
+    document.getElementById("resetBtn").addEventListener("click", seed);
+
+    cullToggle.addEventListener("change", () => {
+      renderer.backfaceCull = cullToggle.checked;
+      setStatus(renderer.backfaceCull ? "Backface culling ON" : "Backface culling OFF");
+    });
+
+    /* ---------------------------
+       Notes sidebar
+    --------------------------- */
+    let selectedNoteId = null;
+
+    function refreshNoteList() {
+      noteListEl.innerHTML = "";
+      if (renderer.pins.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "small";
+        empty.textContent = "No pins yet. Ctrl+Click in the viewport to add one.";
+        noteListEl.appendChild(empty);
+        return;
+      }
+
+      for (const pin of renderer.pins) {
+        const item = document.createElement("div");
+        item.className = "noteItem";
+        item.addEventListener("click", () => selectNote(pin.id));
+
+        const dot = document.createElement("div");
+        dot.className = "pinDot";
+        dot.style.background = pin.color();
+
+        const body = document.createElement("div");
+        const title = document.createElement("div");
+        title.className = "noteTitle";
+        title.textContent = pin.text.length ? pin.text : "(empty)";
+
+        const meta = document.createElement("div");
+        meta.className = "noteMeta";
+        meta.textContent = `category=${pin.category} • anchor=${pin.anchorLabel}`;
+
+        body.appendChild(title);
+        body.appendChild(meta);
+
+        item.appendChild(dot);
+        item.appendChild(body);
+        noteListEl.appendChild(item);
+      }
+    }
+
+    function selectNote(id) {
+      const pin = renderer.pins.find(p => p.id === id);
+      if (!pin) return;
+      selectedNoteId = id;
+
+      noteNoneEl.style.display = "none";
+      noteEditorEl.style.display = "block";
+
+      noteCategoryEl.value = pin.category;
+      noteAnchorEl.value = pin.anchorLabel;
+      noteTextEl.value = pin.text;
+
+      // two-way updates
+      noteCategoryEl.onchange = () => {
+        pin.category = noteCategoryEl.value;
+        refreshNoteList();
+      };
+      noteTextEl.oninput = () => {
+        pin.text = noteTextEl.value;
+        refreshNoteList();
+      };
+
+      focusNoteBtn.onclick = () => {
+        // gently move camera target to pin
+        const cam = renderer.camera;
+        cam.target = Vector3.lerp(cam.target, pin.world, 1.0);
+        setStatus("Focused note");
+      };
+
+      deleteNoteBtn.onclick = () => {
+        renderer.pins = renderer.pins.filter(p => p.id !== id);
+        selectedNoteId = null;
+        refreshNoteList();
+        deselectNote();
+        setStatus("Note deleted");
+      };
+    }
+
+    function deselectNote() {
+      selectedNoteId = null;
+      noteNoneEl.style.display = "block";
+      noteEditorEl.style.display = "none";
+    }
+
+    /* ---------------------------
+       Pin picking (screen distance)
+    --------------------------- */
+    function pickPin(clientX, clientY) {
+      if (!renderer.showPins) return null;
+
+      const rect = canvas.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+
+      let best = null;
+      let bestD = 14; // px threshold
+      for (const pin of renderer.pins) {
+        if (!pin.screen.visible) continue;
+        const dx = x - pin.screen.x;
+        const dy = y - (pin.screen.y - 14); // pin head position
+        const d = Math.hypot(dx, dy);
+        if (d < bestD) {
+          bestD = d;
+          best = pin.id;
+        }
+      }
+      return best;
+    }
+
+    /* ---------------------------
+       Screen -> world approx: ray to ground plane y=groundY
+       We avoid heavy inverses by sampling along a ray derived from camera basis.
+    --------------------------- */
+    function screenToGround(clientX, clientY, groundY = 0) {
+      const rect = canvas.getBoundingClientRect();
+      const sx = (clientX - rect.left);
+      const sy = (clientY - rect.top);
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+
+      const cam = renderer.camera;
+      const eye = cam.position;
+
+      // Build camera basis from view matrix rows (right/up/forward)
+      const V = cam.getViewMatrix().m;
+      const right = new Vector3(V[0], V[1], V[2]);
+      const up = new Vector3(V[4], V[5], V[6]);
+      const forward = new Vector3(V[8], V[9], V[10]); // points from target to eye in our build; so camera looks along -forward
+      const lookDir = forward.mul(-1).norm();
+
+      // Convert screen pixel to NDC-ish offsets
+      const nx = (sx / w) * 2 - 1;
+      const ny = 1 - (sy / h) * 2;
+
+      const tan = Math.tan(cam.fov * 0.5);
+      // approximate ray direction in world: lookDir + right*nx*tan*aspect + up*ny*tan
+      const aspect = w / h;
+      const dir = lookDir
+        .add(right.mul(nx * tan * aspect))
+        .add(up.mul(ny * tan))
+        .norm();
+
+      // Ray-plane intersection: eye + t*dir, solve for y=groundY
+      const denom = dir.y;
+      if (Math.abs(denom) < 1e-6) return null;
+      const t = (groundY - eye.y) / denom;
+      if (t <= 0) return null;
+      return eye.add(dir.mul(t));
+    }
+
+    /* ---------------------------
+       Main loop
+    --------------------------- */
+    let lastTime = performance.now();
+    function tick(now) {
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+
+      // subtle idle animation: spin cubes
+      for (const m of renderer.meshes) {
+        m.rotation.y += dt * 0.35;
+      }
+
+      renderer.render();
+      refreshReadouts();
+      requestAnimationFrame(tick);
+    }
+
+    seed();
+    requestAnimationFrame(tick);
+  </script>
+</body>
+
+</html>

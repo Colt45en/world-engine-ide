@@ -2,25 +2,43 @@
   "C_Cpp.exclusionPolicy": "checkFilesAndFolders",
   "files.autoSave": "onFocusChange",
   "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+  "files.eol": "\n",
   "files.exclude": {
     "**/.git": true,
     "**/node_modules": true,
     "**/dist": true,
+    "**/build": true,
+    "**/.cache": true,
+    "**/.pytest_cache": true,
+    "**/__pycache__": true,
     "**/.DS_Store": true
   },
   "files.watcherExclude": {
     "**/node_modules": true,
     "**/dist": true,
+    "**/build": true,
+    "**/.venv": true,
+    "**/.pytest_cache": true,
+    "**/__pycache__": true,
     "**/.git/**": true
   },
   "search.exclude": {
     "**/node_modules": true,
-    "**/dist": true
+    "**/dist": true,
+    "**/build": true,
+    "**/.venv": true,
+    "**/.pytest_cache": true,
+    "**/__pycache__": true
   },
   "editor.formatOnSave": true,
+  "editor.formatOnSaveMode": "modifications",
   "editor.formatOnPaste": true,
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.codeActionsOnSave": {
+    "source.fixAll": "always",
+    "source.fixAll.eslint": "always",
     "source.organizeImports": "explicit"
   },
   "editor.inlineSuggest.enabled": true,
@@ -31,5 +49,35 @@
   "workbench.editor.enablePreview": false,
   "git.autofetch": true,
   "telemetry.enableTelemetry": false,
-  "telemetry.enableCrashReporter": false
+  "telemetry.enableCrashReporter": false,
+  "editor.codeActions.triggerOnFocusChange": true,
+
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "typescript.tsserver.experimental.enableProjectDiagnostics": true,
+
+  "eslint.nodePath": "./node_modules",
+  "eslint.workingDirectories": [{ "mode": "auto" }],
+  "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
+
+  "python.analysis.typeCheckingMode": "strict",
+  "python.analysis.autoImportCompletions": true,
+
+  "chat.agent.maxRequests": 35,
+  "chat.tools.global.autoApprove": false,
+  "chat.tools.terminal.autoReplyToPrompts": true,
+  "chat.tools.terminal.outputLocation": "terminal",
+  "chat.tools.terminal.autoApprove": {
+    ".\\.venv\\Scripts\\python.exe": true,
+
+    "/^git (status|diff|log|show|branch)( .*)?$/": { "approve": true, "matchCommandLine": true },
+
+    "/^(npm|pnpm) (install|ci|run (dev|build|preview|typecheck|lint|test))( .*)?$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+    "/^node --check .+$/": { "approve": true, "matchCommandLine": true },
+
+    "/^python -m pytest( .*)?$/": { "approve": true, "matchCommandLine": true }
+  },
+  "cmake.sourceDirectory": "C:/Users/colte/Downloads"
 }
