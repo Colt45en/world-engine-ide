@@ -27,6 +27,16 @@ Boundaries:
 - The **engine system** optionally loads a feed and emits bus events.
 - The **UI** may load `public/webhint-feed.json` directly (dev convenience) and embed the resulting LDOM into JSON.
 
+### Performance Optimizations
+
+The LDOM system includes several performance features for handling large trees:
+
+- **Lazy building**: Uses `requestIdleCallback` to build trees incrementally without blocking the main thread
+- **Virtual rendering**: Renders only visible portions of the tree using `startLine` option
+- **Collapsible nodes**: Supports collapsing directory nodes to reduce rendered content
+- **Indent caching**: Pre-computes indent strings to minimize string allocations
+- **Batch processing**: Processes entries in configurable batches (default 100 entries per batch)
+
 ## Data Model / IR
 
 ### Webhint feed
@@ -115,7 +125,45 @@ The UI expects the feed at `public/webhint-feed.json`:
 
 This produces a repo-wide file inventory (including `hint-report/` unless excluded).
 
+### Performance API Usage
+
+For optimal performance with large datasets:
+
+**Lazy tree building** (automatic for >500 entries):
+```javascript
+const tree = await buildLanguageDomTree(entries, {
+  maxDepth: 7,
+  lazy: true,
+  batchSize: 100
+});
+```
+
+**Virtual rendering** (render only visible lines):
+```javascript
+const visibleLines = languageDomTreeToPseudoHtmlLines(tree, {
+  maxLines: 50,
+  startLine: 100,  // Skip first 100 lines
+  collapsed: new Set(['root/node_modules'])  // Collapse specific paths
+});
+```
+
+**Incremental rendering** (for streaming):
+```javascript
+const renderer = languageDomTreeLazyRenderer(tree, { chunkSize: 50 });
+for (const chunk of renderer) {
+  // Process each chunk of lines
+  displayLines(chunk);
+}
+```
+
 ## Changelog
 
+- 2026-01-02: Added performance optimizations for large tree rendering:
+  - Lazy tree building using requestIdleCallback
+  - Virtual rendering with startLine/maxLines options
+  - Collapsible node support
+  - Indent caching for reduced memory allocations
+  - Lazy renderer generator for streaming
+  - Automatic lazy mode for datasets >500 entries
 - 2026-01-01: Added TurtleStack UI, LDOM helpers, and optional engine system integration.
 - 2026-01-01: Switched TurtleStack feed loading to bus-driven (WEBHINT events).

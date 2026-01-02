@@ -43,6 +43,7 @@ export class LanguageDomTreeSystem {
 
   async loadFromUrl(url, opts = {}) {
     const hintReportOnly = opts.hintReportOnly !== false;
+    const lazy = opts.lazy === true;
 
     try {
       const res = await fetch(url);
@@ -54,7 +55,13 @@ export class LanguageDomTreeSystem {
         ? entries.filter((e) => String(e.path || '').startsWith('hint-report/'))
         : entries;
 
-      const tree = buildLanguageDomTree(filtered.slice(0, 500), { maxDepth: 7 });
+      // Use lazy building for large datasets to avoid blocking the main thread
+      const shouldUseLazy = lazy || filtered.length > 500;
+      const tree = await buildLanguageDomTree(filtered.slice(0, 500), {
+        maxDepth: 7,
+        lazy: shouldUseLazy,
+        batchSize: 100,
+      });
 
       if (this.bus && typeof this.bus.emit === 'function') {
         this.bus.emit({

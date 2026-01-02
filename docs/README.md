@@ -24,6 +24,9 @@ If system behavior, APIs, protocols, or workflows change, the corresponding docu
 - [`systems/legacy-static.md`](systems/legacy-static.md)
   Legacy static content under `public/` and migration rules.
 
+- [`systems/turtle-stack.md`](systems/turtle-stack.md)
+  Language DOM Tree (LDOM) system for visualizing code as multi-layer stack.
+
 - [`systems/ws-relay-protocol.md`](systems/ws-relay-protocol.md)
   WebSocket message schema, commands, events, and compatibility.
 
@@ -38,6 +41,13 @@ If system behavior, APIs, protocols, or workflows change, the corresponding docu
 
 - [`systems/render-pipeline.md`](systems/render-pipeline.md)
   Render schema/IR → UI mapping rules and performance constraints.
+
+---
+
+## Performance
+
+- [`performance-guide.md`](performance-guide.md)
+  Performance optimization guide for DOM tree rendering and code visualization.
 
 ---
 
