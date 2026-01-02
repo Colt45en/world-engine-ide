@@ -198,24 +198,25 @@ export function languageDomTreeToPseudoHtmlLines(tree, opts = {}) {
   let lineCount = 0;
 
   function walk(node, indent, path = '') {
-    // Skip lines before startLine for virtual scrolling
-    if (lineCount < startLine) {
-      lineCount++;
-      if (node.type === 'dir' && !collapsed.has(path)) {
-        for (const child of node.children || []) {
-          const childPath = path ? `${path}/${child.name}` : child.name;
-          walk(child, indent + 2, childPath);
-        }
-        lineCount++;
-      }
-      return;
-    }
-
-    if (lines.length >= maxLines) return;
-
     if (node.type === 'dir') {
       const isCollapsed = collapsed.has(path);
-      const marker = isCollapsed ? '+' : '-';
+      
+      // Count and possibly skip this line for virtual scrolling
+      if (lineCount < startLine) {
+        lineCount++;
+        if (!isCollapsed) {
+          for (const child of node.children || []) {
+            const childPath = path ? `${path}/${child.name}` : child.name;
+            walk(child, indent + 2, childPath);
+          }
+          lineCount++; // Count closing tag
+        }
+        return;
+      }
+
+      if (lines.length >= maxLines) return;
+
+      const marker = isCollapsed ? 'collapsed="true"' : '';
       lines.push(`${getIndent(indent)}<dir name="${node.name}" ${marker}>`);
 
       if (!isCollapsed) {
@@ -227,6 +228,14 @@ export function languageDomTreeToPseudoHtmlLines(tree, opts = {}) {
       }
       return;
     }
+
+    // File node
+    if (lineCount < startLine) {
+      lineCount++;
+      return;
+    }
+
+    if (lines.length >= maxLines) return;
 
     lines.push(`${getIndent(indent)}<file name="${node.name}" lang="${node.lang || 'unknown'}" />`);
   }
